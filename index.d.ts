@@ -809,7 +809,7 @@ export function main(argv?: string[]): Promise<void>;
 export interface AiCredentials {
   apiKey?: string;
   apiPassword?: string;
-  endpoint?: string;     // default https://www.javascriptobfuscator.com
+  endpoint?: string;     // default https://javascriptobfuscator.com
   timeoutMs?: number;    // default 30000
 }
 

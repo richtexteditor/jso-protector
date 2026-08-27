@@ -54,7 +54,7 @@ open-source licence.
    Some functionality transmits source code to the JavaScript Obfuscator hosted
    API and requires a valid, current subscription. Your use of those features is
    additionally governed by the service terms published at
-   https://www.javascriptobfuscator.com/. Nothing in this licence grants access
+   https://javascriptobfuscator.com/. Nothing in this licence grants access
    to the hosted service.
 
 5. NO WARRANTY
@@ -87,4 +87,4 @@ open-source licence.
    This licence is governed by the laws of the jurisdiction in which the
    copyright holder is established, without regard to conflict-of-law rules.
 
-Questions about licensing: https://www.javascriptobfuscator.com/
+Questions about licensing: https://javascriptobfuscator.com/

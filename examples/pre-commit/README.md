@@ -41,5 +41,5 @@ The CI templates in `node_modules/jso-protector/ci/` all run `--release-check` B
 
 ## See also
 
-- [npm CLI workflow](https://javascriptobfuscator.com/Docs/NpmCli.aspx)
+- [npm CLI workflow](https://javascriptobfuscator.com/docs/npmcli.aspx)
 - [Build integrations hub](https://javascriptobfuscator.com/build-integrations.aspx)

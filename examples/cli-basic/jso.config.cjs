@@ -1,5 +1,5 @@
 module.exports = ({ env }) => ({
-  endpoint: env.JSO_ENDPOINT || "https://www.javascriptobfuscator.com/HttpApi.ashx",
+  endpoint: env.JSO_ENDPOINT || "https://javascriptobfuscator.com/HttpApi.ashx",
   apiKey: "$JSO_API_KEY",
   apiPassword: "$JSO_API_PASSWORD",
   projectName: env.CI ? "browser-release-ci" : "browser-release-local",

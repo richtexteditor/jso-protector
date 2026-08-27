@@ -1,7 +1,7 @@
 "use strict";
 
 // JSO AI client. Wraps the four /v1/ai/* endpoints documented at
-// https://javascriptobfuscator.com/Docs/AIApi.aspx
+// https://javascriptobfuscator.com/docs/aiapi.aspx
 //
 // Same auth model as the protect API: { apiKey, apiPassword } (base64
 // values from the dashboard). Reads JSO_API_KEY / JSO_API_PASSWORD from

@@ -12,12 +12,12 @@ type: application
 version: 0.1.0
 appVersion: "0.2.0"
 
-home: https://www.javascriptobfuscator.com/
+home: https://javascriptobfuscator.com/
 sources:
-  - https://www.javascriptobfuscator.com/Docs/NpmCli.aspx
+  - https://javascriptobfuscator.com/docs/npmcli.aspx
 maintainers:
   - name: JavaScript Obfuscator
-    url: https://www.javascriptobfuscator.com/contactus.aspx
+    url: https://javascriptobfuscator.com/contactus.aspx
 
 keywords:
   - javascript-obfuscator

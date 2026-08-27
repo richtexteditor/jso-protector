@@ -4,7 +4,7 @@
 # Use this when the language you need isn't covered by one of the shipped
 # clients (Node / Python / Go / .NET / Ruby / PHP / Rust). The script
 # matches the wire format documented at
-# https://www.javascriptobfuscator.com/Docs/WireFormat.aspx
+# https://javascriptobfuscator.com/docs/wireformat.aspx
 #
 # Required: curl, jq.
 #
@@ -36,7 +36,7 @@ if [ $# -lt 2 ] || [ $(($# % 2)) -ne 0 ]; then
 fi
 
 preset="${JSO_PRESET:-balanced}"
-endpoint="${JSO_ENDPOINT:-https://www.javascriptobfuscator.com/HttpApi.ashx}"
+endpoint="${JSO_ENDPOINT:-https://javascriptobfuscator.com/HttpApi.ashx}"
 
 # Build the Items array from the (input, output) argument pairs.
 items_json="[]"

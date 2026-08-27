@@ -118,8 +118,8 @@ Two CLI flags help wire `jso-protector` into a CI pipeline that has to debug pro
   Upload `dist-protected/jso-report.json` as a build artifact alongside the protected JS so the demangling map is available wherever crash triage happens. For VM beta reviews, `--verify-vm-proof` checks that the source-free report shows `UseVMProtection`, `VMProtectionApplied`, a non-zero virtualized function count, and no unresolved VM warnings. `--vm-proof-pack` turns the same report into a Markdown or JSON reviewer packet with build identity, release label, polymorphism fingerprint, VM pass/fail checklist, review decision, warnings, hot-path/cold-path guidance, recommendations, and a VM Proof Review Assistant for BYO AI or internal reviewers.
   For AI-resistance reviews, `--ai-resistance-evidence` turns the same source-free report into a current evidence checklist: build identity, strong protection options, optional VM proof, runtime-defense evidence, compatibility evidence, a non-scoring attacker-model review matrix, review decision, claim boundaries, a Review Assistant Packet for BYO AI or internal reviewers, and a clear `scoreStatus` that says the Resistance Score is still planned. Add `--ai-resistance-evidence-output reports/ai-resistance-evidence.md` for a reviewer artifact, `--json` for machine-readable evidence, and `--require-vm-proof` when VM-backed evidence must be a hard CI gate.
 
-The [JSO GitHub Action](https://github.com/marketplace/actions/javascript-obfuscator)
-wraps the saved-report workflow too: `report-path`, `vm-proof-pack-report`,
+The GitHub Action that ships in this repository (`ci/github-actions.yml`, and
+the `jso-github-action` package) wraps the saved-report workflow too: `report-path`, `vm-proof-pack-report`,
 and `ai-resistance-evidence-report` outputs let CI upload source-free reviewer
 artifacts beside the protected build, while `build-id` and
 `polymorphism-fingerprint` remain available for runtime crash correlation.
@@ -1181,7 +1181,7 @@ jso ai compat-scan --config jso.config.json --fail-on error
 jso ai compat-scan --config jso.config.json --max-files 50    # cap quota burn on huge repos
 ```
 
-Both paths hit the same `/v1/ai/compat-check` endpoint. `--ai-precheck` just folds it into the obfuscation flow so CI doesn't need a second step. Requires a JSO API key with AI access 鈥?FreeTrial works for testing the wire format; Basic and up for production usage. See the [JSO AI quick start](https://javascriptobfuscator.com/Docs/AIQuickStart.aspx) for tier details.
+Both paths hit the same `/v1/ai/compat-check` endpoint. `--ai-precheck` just folds it into the obfuscation flow so CI doesn't need a second step. Requires a JSO API key with AI access 鈥?FreeTrial works for testing the wire format; Basic and up for production usage. See the [JSO AI quick start](https://javascriptobfuscator.com/docs/aiquickstart.aspx) for tier details.
 
 ### AI usage and BYO key health
 

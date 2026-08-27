@@ -1,6 +1,6 @@
 # curl / bash reference implementation
 
-The smallest possible compliant client of the [JSO HTTP API](https://javascriptobfuscator.com/Docs/WireFormat.aspx). Use this when:
+The smallest possible compliant client of the [JSO HTTP API](https://javascriptobfuscator.com/docs/wireformat.aspx). Use this when:
 
 - You need to add JSO protection to a build pipeline written in a language we don't ship a client for.
 - You want a copy-paste reference for what the wire format actually looks like on the network.
@@ -42,7 +42,7 @@ This is a 100-line shell script. It deliberately doesn't implement:
 - The bundler-plugin integration surface (`vite`, `webpack`, `rollup`, ...).
 - Retry logic, exponential backoff, or rate-limit handling.
 
-For a production CI integration, use one of the [shipped language clients](https://javascriptobfuscator.com/Docs/Clients.aspx) instead. The shell script is a reference, not a target.
+For a production CI integration, use one of the [shipped language clients](https://javascriptobfuscator.com/docs/clients.aspx) instead. The shell script is a reference, not a target.
 
 ## Verify the response shape
 
