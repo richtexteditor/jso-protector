@@ -2656,7 +2656,7 @@ function initConfig(args = {}) {
   }), null, 2)}\n`, "utf8");
   process.stdout.write(`Created ${target}\n`);
   process.stdout.write(`Template: ${templateName}\n`);
-  process.stdout.write("This package is local-only. Install it from a workspace path, file: dependency, or internal npm pack tarball.\n");
+  process.stdout.write("Install: npm install --save-dev jso-protector\n");
   process.stdout.write("Next: jso-protector --config jso.config.json --release-check --json\n");
 }
 
@@ -7647,26 +7647,20 @@ function writeVersion(json) {
 
 function writeLocalOnlyGuidance(json) {
   const guidance = {
-    ok: false,
-    sourceLeavesMachine: false,
-    npmPublished: false,
-    packageDistribution: "local-only",
-    message: "This package is intentionally local-only as a distribution artifact and is not published to npm. Install it from a workspace path, a file: dependency, or an internal npm pack tarball. The npm CLI and desktop app protect JavaScript through the hosted service. Use --dry-run, --validate-config, --release-check, --competitor-gap-report, and --doctor for local preflight only. If project policy requires source code to remain local during protection, current JavaScript Obfuscator protection workflows do not meet that requirement.",
-    localInstallCommands: [
-      "npm install --save-dev ./packages/jso-protector",
-      "npm install --save-dev ../packages/jso-protector",
-      "npm install --save-dev path/to/jso-protector-0.2.0.tgz"
+    ok: true,
+    sourceLeavesMachineByDefault: true,
+    sourceCanStayLocal: true,
+    localProtectionFlag: "--local",
+    npmPublished: true,
+    packageDistribution: "npm",
+    message: "Protection runs through the hosted service by default: the files you select are sent to it. If your source must stay on your machine, run this CLI with --local, which uses the bundled jso-local executable and keeps source on-device; it still makes an online entitlement check, and VM bytecode protection remains a hosted step. Everything listed under offlinePreflightCommands runs entirely offline and sends nothing.",
+    installCommands: [
+      "npm install --save-dev jso-protector"
     ],
-    localPackageJsonDependency: {
-      devDependencies: {
-        "jso-protector": "file:../packages/jso-protector"
-      }
-    },
-    internalTarballCommands: [
-      "npm pack --json",
-      "npm install --save-dev path/to/jso-protector-0.2.0.tgz"
+    localProtectionCommands: [
+      "jso-protector --local --input dist --output dist-protected"
     ],
-    localPreflightCommands: [
+    offlinePreflightCommands: [
       "jso-protector --config jso.config.json --release-check --json",
       "jso-protector --config jso.config.json --competitor-gap-report --json",
       "jso-protector --source-map-evidence dist-protected/jso-manifest.json --source-map-evidence-output reports/source-map-evidence.md",
@@ -7680,12 +7674,16 @@ function writeLocalOnlyGuidance(json) {
     return;
   }
   process.stdout.write(`${guidance.message}\n`);
-  process.stdout.write("Local install commands:\n");
-  for (const command of guidance.localInstallCommands) {
+  process.stdout.write("Install:\n");
+  for (const command of guidance.installCommands) {
     process.stdout.write(`- ${command}\n`);
   }
-  process.stdout.write("Local preflight commands:\n");
-  for (const command of guidance.localPreflightCommands) {
+  process.stdout.write("Protect on this machine:\n");
+  for (const command of guidance.localProtectionCommands) {
+    process.stdout.write(`- ${command}\n`);
+  }
+  process.stdout.write("Offline preflight commands:\n");
+  for (const command of guidance.offlinePreflightCommands) {
     process.stdout.write(`- ${command}\n`);
   }
 }

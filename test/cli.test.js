@@ -238,12 +238,34 @@ async function runCliInline(cwd, args, input) {
   const fakeStdin = new stream.PassThrough();
   const oldExitCode = process.exitCode;
 
+  // Capture ONLY what the CLI writes. The test runner reports each result
+  // asynchronously, one test behind, so its lines used to land inside this
+  // window and be swallowed along with the CLI's output - three consecutive
+  // tests then had no result at all, the runner counted them missing, and the
+  // whole file was marked failed with every visible assertion passing. Anything
+  // written outside the cli.main call is somebody else's and goes straight
+  // through to the real stream.
+  let capturing = false;
+
+  // The runner reports asynchronously and its lines can land mid-call, so the
+  // window alone is not enough: recognise the reporter's own output and let it
+  // through. TAP and the spec reporter both start a result line distinctively,
+  // and the CLI under test never writes anything shaped like that.
+  const isRunnerOutput = (text) =>
+    /^(TAP version|ok \d|not ok \d|# |1\.\.\d|✔ |✖ |ℹ )/.test(text) ||
+    text.startsWith("  ---") || text.startsWith("  ...");
+
   process.stdout.write = function patchedStdout(chunk, encoding, callback) {
-    stdoutChunks.push(String(chunk));
+    const text = String(chunk);
+    if (!capturing || isRunnerOutput(text)) {
+      return oldStdoutWrite.call(process.stdout, chunk, encoding, callback);
+    }
+    stdoutChunks.push(text);
     if (typeof callback === "function") callback();
     return true;
   };
   process.stderr.write = function patchedStderr(chunk, encoding, callback) {
+    if (!capturing) return oldStderrWrite.call(process.stderr, chunk, encoding, callback);
     stderrChunks.push(String(chunk));
     if (typeof callback === "function") callback();
     return true;
@@ -258,7 +280,12 @@ async function runCliInline(cwd, args, input) {
     fakeStdin.end(input);
 
     process.exitCode = undefined;
-    await cli.main(args);
+    capturing = true;
+    try {
+      await cli.main(args);
+    } finally {
+      capturing = false;
+    }
     const code = process.exitCode || 0;
     if (code !== 0) {
       const stderr = stderrChunks.join("");
@@ -3571,17 +3598,22 @@ test("CLI explains compatibility options and local-only guidance", async () => {
   assert.equal(identifiersPrefix.option, "identifiersPrefix");
 
   const local = JSON.parse((await runCli(["--local-only", "--json"], "")).stdout);
-  assert.equal(local.sourceLeavesMachine, false);
-  assert.equal(local.npmPublished, false);
-  assert.equal(local.packageDistribution, "local-only");
-  assert.equal(local.localPackageJsonDependency.devDependencies["jso-protector"], "file:../packages/jso-protector");
-  assert.equal(local.localInstallCommands.some((command) => command.includes("./packages/jso-protector")), true);
-  assert.equal(local.internalTarballCommands.some((command) => command.includes("npm pack --json")), true);
-  assert.equal(local.localPreflightCommands.some((command) => command.includes("--competitor-gap-report --json")), true);
-  assert.equal(local.localPreflightCommands.some((command) => command.includes("--source-map-evidence")), true);
-  assert.equal(local.localPreflightCommands.some((command) => command.includes("--runtime-incident-evidence")), true);
-  assert.equal(local.message.includes("desktop app"), true);
-  assert.equal(local.message.includes("do not meet that requirement"), true);
+  // These assertions used to pin the pre-publication story: not on npm, source
+  // can never stay local. Both became false - the package is published and
+  // --local protects on-device - and the guidance kept printing them to users.
+  assert.equal(local.npmPublished, true);
+  assert.equal(local.packageDistribution, "npm");
+  assert.equal(local.sourceLeavesMachineByDefault, true);
+  assert.equal(local.sourceCanStayLocal, true);
+  assert.equal(local.localProtectionFlag, "--local");
+  assert.equal(local.installCommands.some((command) => command === "npm install --save-dev jso-protector"), true);
+  assert.equal(local.localProtectionCommands.some((command) => command.includes("--local")), true);
+  assert.equal(local.message.includes("VM bytecode protection remains a hosted step"), true);
+  assert.equal(local.offlinePreflightCommands.some((command) => command.includes("--competitor-gap-report --json")), true);
+  assert.equal(local.offlinePreflightCommands.some((command) => command.includes("--source-map-evidence")), true);
+  assert.equal(local.offlinePreflightCommands.some((command) => command.includes("--runtime-incident-evidence")), true);
+  assert.equal(local.message.includes("keeps source on-device"), true);
+  assert.equal(local.message.includes("online entitlement check"), true);
 });
 
 test("CLI explains JS-Confuser compatibility options", async () => {
@@ -4740,7 +4772,7 @@ test("post-build helper planners honor helper-specific defaults and overrides", 
   assert.equal(bunPlan.summary.files.includes("app.js"), true);
 });
 
-test("CLI init writes config and local-only next steps", async () => {
+test("CLI init writes config and next steps", async () => {
   const root = makeTempDir();
   const result = await runCliInCwd(root, ["--init"], "");
   const configPath = path.join(root, "jso.config.json");
@@ -4748,8 +4780,7 @@ test("CLI init writes config and local-only next steps", async () => {
 
   assert.equal(config.$schema, "./node_modules/jso-protector/jso.config.schema.json");
   assert.equal(config.apiKey, "$JSO_API_KEY");
-  assert.equal(result.stdout.includes("local-only"), true);
-  assert.equal(result.stdout.includes("file: dependency"), true);
+  assert.equal(result.stdout.includes("npm install --save-dev jso-protector"), true);
   assert.equal(result.stdout.includes("--release-check --json"), true);
 });
 
