@@ -238,7 +238,13 @@ import protectTurbopackBuild from "jso-protector/turbopack";
 import viteProtector from "jso-protector/vite";
 import webpackProtector from "jso-protector/webpack";
 import webpackLoader from "jso-protector/webpack-loader";
-import schema from "jso-protector/schema" assert { type: "json" };
+import { createRequire } from "node:module";
+// Import attributes would be the natural way to read the JSON export, but the
+// syntax changed under us: \`assert { type: "json" }\` was removed in Node 22 and
+// \`with { type: "json" }\` only exists from 18.20 / 20.10. package.json says
+// engines >=18, so neither spelling covers the whole supported range and
+// createRequire does. Caught by CI on Node 22 after passing on Node 24 locally.
+const schema = createRequire(import.meta.url)("jso-protector/schema");
 
 assert.equal(typeof api.obfuscate, "function");
 for (const entry of [
@@ -736,8 +742,12 @@ function verifyPublishMetadataGuard(packageDir) {
   if (report.format !== "jso-protector-publish-metadata") {
     throw new Error(`Publish metadata guard reported wrong format: ${JSON.stringify(report)}`);
   }
-  if (report.ok !== true || report.localOnly !== true || report.localAllowed !== true || report.publishReady !== false) {
-    throw new Error(`Publish metadata guard should confirm the local-only package policy: ${JSON.stringify(report)}`);
+  // The package went public at 0.4.0. This assertion still described the
+  // pre-publication policy (localOnly, never publishable) and so failed the
+  // moment it ran anywhere the portable shortcut did not apply - which is to
+  // say, on CI rather than on the maintainer's machine.
+  if (report.ok !== true || report.localOnly !== false || report.proprietaryPublic !== true || report.publishReady !== true) {
+    throw new Error(`Publish metadata guard should confirm the published package policy: ${JSON.stringify(report)}`);
   }
   if ((report.issues || []).length) {
     throw new Error(`Publish metadata guard reported unexpected local-only issues: ${JSON.stringify(report)}`);
