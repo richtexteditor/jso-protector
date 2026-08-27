@@ -117,6 +117,18 @@ function exec(command, args, options = {}) {
 }
 
 function canSpawnChildren() {
+  // KNOWN COVERAGE GAP, deliberately left in place. Windows always takes the
+  // portable path, so the full verification - the half that installs the packed
+  // tarball and runs the CLI from it - never runs on the maintainer's machine.
+  // That is why three separate gates still asserting the pre-publication story
+  // ("not published to npm", "source can never stay local") survived here and
+  // were only caught when CI ran the real path on Linux.
+  //
+  // Making it run here is not a one-line change: npm is npm.cmd, which Node
+  // refuses to spawn without a shell since the 2024 argument-injection
+  // hardening, and shelling it changes how `npm pack --json` output arrives.
+  // Until someone does that properly, CI is the only place the full path runs -
+  // so a green local run is NOT evidence that this gate passes.
   if (process.platform === "win32") {
     return false;
   }
@@ -304,16 +316,21 @@ assert.equal(typeof schema.properties.endpoint, "object");
   }
 
   const localOnly = JSON.parse(exec(npm, ["exec", "--", "jso-protector", "--local-only", "--json"], { cwd: projectDir }));
+  // Third gate found pinning the pre-publication story, after the metadata
+  // guard and the CLI's own tests. It asserted the package could never keep
+  // source on the machine; --local has done exactly that since before 0.4.0.
   if (
-    localOnly.sourceLeavesMachine !== false ||
-    !Array.isArray(localOnly.localPreflightCommands) ||
-    !localOnly.localPreflightCommands.some((command) => command.includes("--release-check --json")) ||
-    !localOnly.localPreflightCommands.some((command) => command.includes("--competitor-gap-report --json"))
+    localOnly.npmPublished !== true ||
+    localOnly.sourceCanStayLocal !== true ||
+    localOnly.localProtectionFlag !== "--local" ||
+    !Array.isArray(localOnly.offlinePreflightCommands) ||
+    !localOnly.offlinePreflightCommands.some((command) => command.includes("--release-check --json")) ||
+    !localOnly.offlinePreflightCommands.some((command) => command.includes("--competitor-gap-report --json"))
   ) {
     throw new Error(`Local-only guidance output is wrong: ${JSON.stringify(localOnly)}`);
   }
-  if (localOnly.npmPublished !== false || localOnly.packageDistribution !== "local-only" || !localOnly.localInstallCommands.some((command) => command.includes("./packages/jso-protector"))) {
-    throw new Error(`Local package guidance output is wrong: ${JSON.stringify(localOnly)}`);
+  if (localOnly.packageDistribution !== "npm" || !localOnly.installCommands.some((command) => command === "npm install --save-dev jso-protector")) {
+    throw new Error(`Package distribution guidance output is wrong: ${JSON.stringify(localOnly)}`);
   }
 
   const samplePath = path.join(projectDir, "sample.js");
@@ -750,7 +767,7 @@ function verifyPublishMetadataGuard(packageDir) {
     throw new Error(`Publish metadata guard should confirm the published package policy: ${JSON.stringify(report)}`);
   }
   if ((report.issues || []).length) {
-    throw new Error(`Publish metadata guard reported unexpected local-only issues: ${JSON.stringify(report)}`);
+    throw new Error(`Publish metadata guard reported unexpected issues: ${JSON.stringify(report)}`);
   }
 }
 
