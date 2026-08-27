@@ -1,0 +1,33 @@
+# Example `.pre-commit-config.yaml` for jso-protector consumers.
+#
+# Drop this at the root of your repo and run:
+#   pre-commit install
+#
+# After that every `git commit` runs jso-protector --release-check against
+# the staged JS. The check catches config drift (missing required option,
+# bad path, expired credential) before it lands in CI.
+#
+# It deliberately does NOT POST source to the JSO API on every commit.
+# Pre-commit is the wrong place for that; full protection belongs in CI.
+
+repos:
+  - repo: https://www.javascriptobfuscator.com/jso-protector-pre-commit
+    rev: "v0.2.0"   # Pin to a jso-protector release tag.
+    hooks:
+      - id: jso-release-check
+      # Recommended for any repo that touches the JSO API — catches
+      # accidentally-committed API tokens before they enter history:
+      - id: jso-credential-leak
+      # Uncomment for an additional dry-run on every push:
+      # - id: jso-dry-run
+
+  # Companion: catch ".jso.config.json contains JSO_API_KEY=..." style mistakes
+  # before they reach git. Reuses upstream check-added-large-files / detect-private-key.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: detect-private-key
+      - id: check-yaml
+      - id: check-json
+      - id: end-of-file-fixer
+      - id: trailing-whitespace

@@ -1,0 +1,14 @@
+{
+  "name": "jso-protector-cli-example",
+  "private": true,
+  "scripts": {
+    "build": "node ./scripts/build.js",
+    "preflight": "jso-protector --config jso.config.json --release-check --json",
+    "doctor": "jso-protector --config jso.config.json --doctor --json",
+    "protect": "jso-protector --config jso.config.json",
+    "release": "npm run build && npm run preflight && npm run protect"
+  },
+  "devDependencies": {
+    "jso-protector": "file:../.."
+  }
+}

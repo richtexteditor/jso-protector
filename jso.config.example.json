@@ -1,0 +1,29 @@
+{
+  "$schema": "./jso.config.schema.json",
+  "endpoint": "https://javascriptobfuscator.com/HttpApi.ashx",
+  "apiKey": "$JSO_API_KEY",
+  "apiPassword": "$JSO_API_PASSWORD",
+  "projectName": "browser-release",
+  "input": "dist",
+  "output": "dist-protected",
+  "preset": "balanced",
+  "extensions": [".js", ".jsx"],
+  "exclude": ["**/*.map", "**/vendor/**", "**/*-obfuscated.js"],
+  "copyAssets": true,
+  "assetExclude": ["**/*.map"],
+  "mixedServer": false,
+  "parseHtml": false,
+  "honorConditionalComments": false,
+  "keepHeaderComment": true,
+  "protectObjectDeclaration": false,
+  "moveNestedFunction": false,
+  "formattedOutput": false,
+  "keepIndent": false,
+  "lineNumbers": false,
+  "reservedNames": ["^PublicApi$", "^keep_"],
+  "options": {
+    "OptimizationMode": "Web",
+    "LockDomain": false,
+    "LockDate": false
+  }
+}

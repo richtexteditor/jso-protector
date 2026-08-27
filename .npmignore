@@ -1,0 +1,3 @@
+examples/**/dist/
+examples/**/dist-protected/
+examples/**/node_modules/

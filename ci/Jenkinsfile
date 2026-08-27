@@ -1,0 +1,83 @@
+// Declarative Jenkinsfile for jso-protector.
+//
+// Drop this at the root of your repo. The pipeline expects credentials stored
+// in Jenkins as two Secret Text bindings: jso-api-key and jso-api-password.
+// They are exported into the env at step time so jso-protector picks them up
+// without echoing them in build logs.
+//
+// Every protection run is tagged with $GIT_COMMIT so the JSO dashboard audit
+// log groups by commit. The API report is archived as a Jenkins artifact and
+// can be retrieved later for stack-trace symbolication via jso-symbolicate.
+
+pipeline {
+    agent any
+
+    tools {
+        nodejs 'node-22'
+    }
+
+    environment {
+        JSO_API_KEY      = credentials('jso-api-key')
+        JSO_API_PASSWORD = credentials('jso-api-password')
+    }
+
+    stages {
+        stage('Install') {
+            steps {
+                sh 'npm ci'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'npm run build'
+            }
+        }
+
+        stage('Release preflight') {
+            steps {
+                sh 'npx jso-protector --config jso.config.json --release-check --json'
+            }
+        }
+
+        stage('Protect JavaScript') {
+            steps {
+                sh '''
+                    npx jso-protector \
+                        --config jso.config.json \
+                        --label "$GIT_COMMIT" \
+                        --manifest dist-protected/jso-manifest.json \
+                        --report dist-protected/jso-report.json
+                        # Optional: migration and supply-chain checks. Copy into a preflight/protect step as needed.
+                        # Configure JSO_WATERMARK_KEY as a masked secret; check in ci-key.pub.pem,
+                        # store ci-key.priv.pem in a CI file secret. See WireFormat.aspx#watermark.
+                        #   npx jso-protector --config jso.config.json --competitor-gap-report --json  # competitor migration gap report
+                        #   npx jso-protector --source-map-evidence dist-protected/jso-manifest.json --source-map-evidence-output reports/source-map-evidence.json --json  # source-map absence evidence
+                        #   npx jso-protector --script-inventory-audit reports/payment-script-inventory.json --runtime-inventory-snapshot reports/runtime-inventory.json --script-inventory-audit-output reports/payment-script-inventory-audit.json --json  # payment-page script drift gate
+                        #   npx jso-protector --payment-page-headers-from-har reports/checkout.har --payment-page-headers-baseline reports/payment-page-headers.baseline.json --payment-page-headers-output reports/payment-page-headers.json --payment-page-url-pattern "checkout|payment|wallet" --json  # payment-page security-header evidence
+                        #   --ai-precheck --ai-precheck-fail-on error      // AI compat scan gate
+                        #   --estimate                                     // pre-flight quota gate
+                        #   --watermark "$COMMIT_SHA"                      // HMAC marker (needs JSO_WATERMARK_KEY env)
+                        #   --sign-release ci-key.priv.pem                 // Ed25519 attestation -> .manifest.json.sig
+                        #   --local                                        // protect on the runner, no source upload (Windows agents only)
+                '''
+            }
+        }
+
+        stage('Smoke') {
+            steps {
+                sh 'npm run smoke --if-present'
+            }
+        }
+    }
+
+    post {
+        always {
+            // Archive both the protected dist and the report. Keep the report
+            // in a separate fingerprinted artifact so support can pull "just
+            // the symbolication map" without re-downloading megabytes of dist.
+            archiveArtifacts artifacts: 'dist-protected/**', fingerprint: true, allowEmptyArchive: false
+            archiveArtifacts artifacts: 'dist-protected/jso-report.json', fingerprint: true, allowEmptyArchive: false
+        }
+    }
+}

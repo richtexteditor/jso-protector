@@ -1,0 +1,68 @@
+# Drone CI 1.x template for jso-protector.
+#
+# Drop this at .drone.yml in your repo. Add JSO_API_KEY and JSO_API_PASSWORD
+# as Drone organization or repository secrets (jso_api_key / jso_api_password).
+#
+# Every protection run is tagged with DRONE_COMMIT_SHA via --label, and the
+# API report rides alongside the protected dist for later symbolication.
+
+kind: pipeline
+type: docker
+name: protected-release
+
+trigger:
+  branch:
+    - main
+
+steps:
+  - name: install
+    image: node:22
+    commands:
+      - npm ci
+
+  - name: build
+    image: node:22
+    commands:
+      - npm run build
+
+  - name: protect
+    image: node:22
+    environment:
+      JSO_API_KEY:
+        from_secret: jso_api_key
+      JSO_API_PASSWORD:
+        from_secret: jso_api_password
+    commands:
+      - npx jso-protector --config jso.config.json --release-check --json
+      - >
+        npx jso-protector
+        --config jso.config.json
+        --label "$DRONE_COMMIT_SHA"
+        --manifest dist-protected/jso-manifest.json
+        --report dist-protected/jso-report.json
+        # Optional: migration and supply-chain checks. Copy into a preflight/protect step as needed.
+        # Configure JSO_WATERMARK_KEY as a masked secret; check in ci-key.pub.pem,
+        # store ci-key.priv.pem in a CI file secret. See WireFormat.aspx#watermark.
+        #   npx jso-protector --config jso.config.json --competitor-gap-report --json  # competitor migration gap report
+        #   npx jso-protector --source-map-evidence dist-protected/jso-manifest.json --source-map-evidence-output reports/source-map-evidence.json --json  # source-map absence evidence
+        #   npx jso-protector --script-inventory-audit reports/payment-script-inventory.json --runtime-inventory-snapshot reports/runtime-inventory.json --script-inventory-audit-output reports/payment-script-inventory-audit.json --json  # payment-page script drift gate
+        #   npx jso-protector --payment-page-headers-from-har reports/checkout.har --payment-page-headers-baseline reports/payment-page-headers.baseline.json --payment-page-headers-output reports/payment-page-headers.json --payment-page-url-pattern "checkout|payment|wallet" --json  # payment-page security-header evidence
+        #   --ai-precheck --ai-precheck-fail-on error      # AI compat scan gate
+        #   --estimate                                     # pre-flight quota gate
+        #   --watermark "$COMMIT_SHA"                      # HMAC marker (needs JSO_WATERMARK_KEY env)
+        #   --sign-release ci-key.priv.pem                 # Ed25519 attestation -> .manifest.json.sig
+        #   --local                                        # protect on the runner, no source upload (Windows agents only)
+      - npm run smoke --if-present
+
+  - name: archive
+    image: plugins/s3
+    settings:
+      bucket: your-artifact-bucket
+      source: dist-protected/**/*
+      target: /builds/$DRONE_COMMIT_SHA
+      access_key:
+        from_secret: aws_access_key
+      secret_key:
+        from_secret: aws_secret_key
+    when:
+      status: [success]

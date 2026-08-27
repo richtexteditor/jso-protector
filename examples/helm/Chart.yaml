@@ -1,0 +1,27 @@
+apiVersion: v2
+name: jso-protector
+description: |
+  Run jso-protector as a Kubernetes Job. Wraps the npm CLI with secret-backed
+  credentials, configurable preset, and a side-car-free artifact pattern.
+
+# JSO is not itself a long-running service — this chart deploys a Job, not a
+# Deployment. Re-run by re-invoking `helm upgrade --install` or by templating
+# a CronJob from the same values.
+
+type: application
+version: 0.1.0
+appVersion: "0.2.0"
+
+home: https://www.javascriptobfuscator.com/
+sources:
+  - https://www.javascriptobfuscator.com/Docs/NpmCli.aspx
+maintainers:
+  - name: JavaScript Obfuscator
+    url: https://www.javascriptobfuscator.com/contactus.aspx
+
+keywords:
+  - javascript-obfuscator
+  - obfuscation
+  - protection
+  - kubernetes-job
+  - ci

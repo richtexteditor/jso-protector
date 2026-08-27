@@ -1,0 +1,107 @@
+# Tekton Pipelines template for jso-protector.
+#
+# Drop this at .tekton/jso-protect.yaml in your repo and `kubectl apply -f`
+# it (or wire it into your Tekton Triggers EventListener). Add the JSO
+# credentials as a Kubernetes Secret named jso-credentials with keys
+# JSO_API_KEY and JSO_API_PASSWORD.
+#
+# Every protection run is tagged with $(params.commit-sha) via --label, and
+# the API report is written into the workspace for later symbolication.
+
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: jso-protect
+  labels:
+    app.kubernetes.io/version: "0.1.0"
+spec:
+  description: >-
+    Run jso-protector against the built JavaScript in the workspace and
+    archive the API report alongside the protected dist.
+  params:
+    - name: commit-sha
+      type: string
+      description: Tag every protection run with this SHA via --label.
+    - name: config-path
+      type: string
+      default: jso.config.json
+    - name: input-dir
+      type: string
+      default: dist
+    - name: output-dir
+      type: string
+      default: dist-protected
+  workspaces:
+    - name: source
+      description: Source workspace containing the build output and config.
+  steps:
+    - name: install
+      image: node:22
+      workingDir: $(workspaces.source.path)
+      script: |
+        set -euo pipefail
+        npm ci
+
+    - name: build
+      image: node:22
+      workingDir: $(workspaces.source.path)
+      script: |
+        set -euo pipefail
+        npm run build
+
+    - name: protect
+      image: node:22
+      workingDir: $(workspaces.source.path)
+      env:
+        - name: JSO_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: jso-credentials
+              key: JSO_API_KEY
+        - name: JSO_API_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: jso-credentials
+              key: JSO_API_PASSWORD
+      script: |
+        set -euo pipefail
+        npx jso-protector --config $(params.config-path) --release-check --json
+        npx jso-protector \
+          --config $(params.config-path) \
+          --label "$(params.commit-sha)" \
+          --manifest $(params.output-dir)/jso-manifest.json \
+          --report $(params.output-dir)/jso-report.json
+          # Optional: migration and supply-chain checks. Copy into a preflight/protect step as needed.
+          # Configure JSO_WATERMARK_KEY as a masked secret; check in ci-key.pub.pem,
+          # store ci-key.priv.pem in a CI file secret. See WireFormat.aspx#watermark.
+          #   npx jso-protector --config jso.config.json --competitor-gap-report --json  # competitor migration gap report
+          #   npx jso-protector --source-map-evidence dist-protected/jso-manifest.json --source-map-evidence-output reports/source-map-evidence.json --json  # source-map absence evidence
+          #   npx jso-protector --script-inventory-audit reports/payment-script-inventory.json --runtime-inventory-snapshot reports/runtime-inventory.json --script-inventory-audit-output reports/payment-script-inventory-audit.json --json  # payment-page script drift gate
+          #   npx jso-protector --payment-page-headers-from-har reports/checkout.har --payment-page-headers-baseline reports/payment-page-headers.baseline.json --payment-page-headers-output reports/payment-page-headers.json --payment-page-url-pattern "checkout|payment|wallet" --json  # payment-page security-header evidence
+          #   --ai-precheck --ai-precheck-fail-on error      # AI compat scan gate
+          #   --estimate                                     # pre-flight quota gate
+          #   --watermark "$COMMIT_SHA"                      # HMAC marker (needs JSO_WATERMARK_KEY env)
+          #   --sign-release ci-key.priv.pem                 # Ed25519 attestation -> .manifest.json.sig
+          #   --local                                        # protect on the runner, no source upload (Windows agents only)
+        npm run smoke --if-present
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: jso-protected-release
+spec:
+  params:
+    - name: commit-sha
+      type: string
+  workspaces:
+    - name: source
+  tasks:
+    - name: protect
+      taskRef:
+        name: jso-protect
+      params:
+        - name: commit-sha
+          value: $(params.commit-sha)
+      workspaces:
+        - name: source
+          workspace: source

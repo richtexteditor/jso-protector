@@ -1,0 +1,122 @@
+# Argo Workflows template for jso-protector.
+#
+# Drop this into your Argo install and submit with:
+#   argo submit argo-workflows.yaml -p repo-url=https://github.com/your-org/your-repo \
+#       -p commit-sha=$(git rev-parse HEAD)
+#
+# Add a Kubernetes Secret named `jso-credentials` with keys JSO_API_KEY and
+# JSO_API_PASSWORD before submitting.
+#
+# Every protection run is tagged with the commit SHA via --label, and the
+# API report rides as a workflow artifact for later symbolication.
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: jso-protect-
+  labels:
+    app.kubernetes.io/name: jso-protector
+spec:
+  entrypoint: protect-release
+
+  arguments:
+    parameters:
+      - name: repo-url
+        value: "https://github.com/your-org/your-repo.git"
+      - name: commit-sha
+        value: "main"
+      - name: preset
+        value: "balanced"
+
+  volumeClaimTemplates:
+    - metadata:
+        name: workspace
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 2Gi
+
+  templates:
+    - name: protect-release
+      steps:
+        - - name: checkout
+            template: git-clone
+        - - name: build
+            template: npm-build
+        - - name: protect
+            template: jso-protect
+
+    - name: git-clone
+      container:
+        image: alpine/git:2.43.0
+        command: [ sh, -c ]
+        args:
+          - |
+            set -eu
+            cd /workspace
+            git clone --depth 1 --branch "{{workflow.parameters.commit-sha}}" \
+                "{{workflow.parameters.repo-url}}" .
+            echo "Checked out $(git rev-parse HEAD)"
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+
+    - name: npm-build
+      container:
+        image: node:22
+        workingDir: /workspace
+        command: [ sh, -c ]
+        args:
+          - |
+            set -eu
+            npm ci --no-audit --no-fund
+            npm run build
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+
+    - name: jso-protect
+      container:
+        image: node:22
+        workingDir: /workspace
+        envFrom:
+          - secretRef:
+              name: jso-credentials
+        command: [ sh, -c ]
+        args:
+          - |
+            set -eu
+            SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+            npx jso-protector --config jso.config.json --release-check --json
+            npx jso-protector \
+                --config jso.config.json \
+                --preset "{{workflow.parameters.preset}}" \
+                --label "$SHA" \
+                --manifest dist-protected/jso-manifest.json \
+                --report   dist-protected/jso-report.json
+                # Optional: migration and supply-chain checks. Copy into a preflight/protect step as needed.
+                # Configure JSO_WATERMARK_KEY as a masked secret; check in ci-key.pub.pem,
+                # store ci-key.priv.pem in a CI file secret. See WireFormat.aspx#watermark.
+                #   npx jso-protector --config jso.config.json --competitor-gap-report --json  # competitor migration gap report
+                #   npx jso-protector --source-map-evidence dist-protected/jso-manifest.json --source-map-evidence-output reports/source-map-evidence.json --json  # source-map absence evidence
+                #   npx jso-protector --script-inventory-audit reports/payment-script-inventory.json --runtime-inventory-snapshot reports/runtime-inventory.json --script-inventory-audit-output reports/payment-script-inventory-audit.json --json  # payment-page script drift gate
+                #   npx jso-protector --payment-page-headers-from-har reports/checkout.har --payment-page-headers-baseline reports/payment-page-headers.baseline.json --payment-page-headers-output reports/payment-page-headers.json --payment-page-url-pattern "checkout|payment|wallet" --json  # payment-page security-header evidence
+                #   --ai-precheck --ai-precheck-fail-on error      # AI compat scan gate
+                #   --estimate                                     # pre-flight quota gate
+                #   --watermark "$COMMIT_SHA"                      # HMAC marker (needs JSO_WATERMARK_KEY env)
+                #   --sign-release ci-key.priv.pem                 # Ed25519 attestation -> .manifest.json.sig
+                #   --local                                        # protect on the runner, no source upload (Windows agents only)
+            npm run smoke --if-present
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+      outputs:
+        artifacts:
+          - name: protected-dist
+            path: /workspace/dist-protected
+            archive:
+              tar:
+                compressionLevel: 6
+          - name: jso-report
+            path: /workspace/dist-protected/jso-report.json

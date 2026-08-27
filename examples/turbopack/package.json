@@ -1,0 +1,13 @@
+{
+  "name": "jso-protector-turbopack-example",
+  "private": true,
+  "scripts": {
+    "build": "next build --turbopack",
+    "preflight": "node ./scripts/protect-release.js --plan",
+    "protect": "node ./scripts/protect-release.js",
+    "release": "npm run build && npm run preflight && npm run protect"
+  },
+  "devDependencies": {
+    "jso-protector": "file:../.."
+  }
+}

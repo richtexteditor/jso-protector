@@ -1,0 +1,57 @@
+trigger: none
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "22.x"
+    displayName: Use Node.js
+
+  - script: npm ci
+    displayName: Install dependencies
+
+  - script: npm run build
+    displayName: Build
+
+  - script: npm run verify:package --if-present
+    displayName: Verify package install
+
+  - script: npm run verify:publish-metadata --if-present
+    displayName: Verify publish metadata
+
+  - script: npx jso-protector --config jso.config.json --release-check --json
+    displayName: Release preflight
+    env:
+      JSO_API_KEY: $(JSO_API_KEY)
+      JSO_API_PASSWORD: $(JSO_API_PASSWORD)
+
+  - script: |
+      npx jso-protector \
+        --config jso.config.json \
+        --label "$(Build.SourceVersion)" \
+        --manifest dist-protected/jso-manifest.json \
+        --report dist-protected/jso-report.json
+        # Optional: migration and supply-chain checks. Copy into a preflight/protect step as needed.
+        # Configure JSO_WATERMARK_KEY as a masked secret; check in ci-key.pub.pem,
+        # store ci-key.priv.pem in a CI file secret. See WireFormat.aspx#watermark.
+        #   npx jso-protector --config jso.config.json --competitor-gap-report --json  # competitor migration gap report
+        #   npx jso-protector --source-map-evidence dist-protected/jso-manifest.json --source-map-evidence-output reports/source-map-evidence.json --json  # source-map absence evidence
+        #   npx jso-protector --script-inventory-audit reports/payment-script-inventory.json --runtime-inventory-snapshot reports/runtime-inventory.json --script-inventory-audit-output reports/payment-script-inventory-audit.json --json  # payment-page script drift gate
+        #   npx jso-protector --payment-page-headers-from-har reports/checkout.har --payment-page-headers-baseline reports/payment-page-headers.baseline.json --payment-page-headers-output reports/payment-page-headers.json --payment-page-url-pattern "checkout|payment|wallet" --json  # payment-page security-header evidence
+        #   --ai-precheck --ai-precheck-fail-on error      # AI compat scan gate
+        #   --estimate                                     # pre-flight quota gate
+        #   --watermark "$COMMIT_SHA"                      # HMAC marker (needs JSO_WATERMARK_KEY env)
+        #   --sign-release ci-key.priv.pem                 # Ed25519 attestation -> .manifest.json.sig
+        #   --local                                        # protect on the runner, no source upload (Windows agents only)
+    displayName: Protect JavaScript
+    env:
+      JSO_API_KEY: $(JSO_API_KEY)
+      JSO_API_PASSWORD: $(JSO_API_PASSWORD)
+
+  - script: npm run smoke
+    displayName: Smoke test
+
+  - publish: dist-protected
+    artifact: protected-dist

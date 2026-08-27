@@ -1,0 +1,13 @@
+{
+  "name": "jso-protector-bun-example",
+  "private": true,
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target browser",
+    "preflight": "node ./scripts/protect-release.js --plan",
+    "protect": "node ./scripts/protect-release.js",
+    "release": "bun run build && node ./scripts/protect-release.js --plan && node ./scripts/protect-release.js"
+  },
+  "devDependencies": {
+    "jso-protector": "file:../.."
+  }
+}

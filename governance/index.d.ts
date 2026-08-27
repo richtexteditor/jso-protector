@@ -1,0 +1,18 @@
+export type GovernanceRole = "owner" | "admin" | "developer" | "reviewer" | "viewer";
+export type GovernanceAction = "protect" | "view_evidence" | "export_evidence" | "manage_projects" | "manage_members" | "manage_tokens" | "manage_billing" | "view_audit";
+export type TokenScope = "protect" | "evidence:read" | "evidence:export" | "projects:write" | "audit:read";
+export interface GovernanceMember { id: string; role: GovernanceRole; active?: boolean; }
+export interface AuthorizationResult { allowed: boolean; reason: string; role?: GovernanceRole; }
+export interface TokenDescriptor { id: string; name: string; createdBy: string; scopes: TokenScope[]; expiresAt: string | null; revokedAt: string | null; }
+export declare const ROLE_PERMISSIONS: Readonly<Record<GovernanceRole, readonly GovernanceAction[]>>;
+export declare const TOKEN_SCOPES: readonly TokenScope[];
+export declare function createGovernancePolicy(config: { members: GovernanceMember[] }): { authorize(actorId: string, action: GovernanceAction): AuthorizationResult; describe(): object; };
+export declare function createTokenDescriptor(input: { id: string; name?: string; createdBy: string; scopes?: TokenScope[]; expiresAt?: string | Date; revokedAt?: string | Date }): TokenDescriptor;
+export declare function authorizeToken(token: TokenDescriptor, scope: TokenScope, now?: string | Date): AuthorizationResult;
+export declare function createAuditTrail(config: { organizationId: string }): { append(event: { actorId: string; action: string; target?: string; outcome?: string; occurredAt?: string | Date; metadata?: Record<string, unknown> }): object; verify(rows?: object[]): boolean; events(): object[]; };
+export interface EnterpriseIdentityConfig { protocol: "oidc" | "saml"; domains: readonly string[]; issuer: string | null; clientId: string | null; ssoUrl: string | null; entityId: string | null; certificateFingerprint: string | null; enforceSso: boolean; defaultRole: GovernanceRole; }
+export interface ScimUser { schemas: readonly string[]; id: string; userName: string; displayName: string; role: GovernanceRole; active: boolean; organizationId: string; externalId: string | null; meta: { resourceType: "User"; version: string }; }
+export declare function validateEnterpriseIdentityConfig(input: { protocol: "oidc" | "saml"; domains: string[]; issuer?: string; clientId?: string; ssoUrl?: string; entityId?: string; certificate?: string; enforceSso?: boolean; defaultRole?: GovernanceRole }): EnterpriseIdentityConfig;
+export declare function authenticateEnterprisePrincipal(config: EnterpriseIdentityConfig, assertion: Record<string, unknown>, context: { signatureVerified: true; now?: string | Date; nonce?: string; audience?: string }): { subject: string; email: string; domain: string; role: GovernanceRole; protocol: "oidc" | "saml"; };
+export declare function createOrganizationDirectory(config: { organizationId: string; users?: Partial<ScimUser>[] }): { organizationId: string; upsertUser(input: Partial<ScimUser> & { id?: string; userName: string }): ScimUser; patchUser(id: string, operations: Array<{ op: "replace"; path: "active" | "displayName" | "role" | "userName"; value: unknown }>): ScimUser | null; deactivateUser(id: string): ScimUser | null; getUser(id: string): ScimUser | null; listUsers(filter?: string): object; };
+export declare function createScimService(config: { organizationId?: string; directory?: ReturnType<typeof createOrganizationDirectory>; bearerToken: string }): { handle(request: { method: string; url: string; headers?: Record<string, string>; body?: any }): { status: number; headers: Record<string, string>; body: any }; directory: ReturnType<typeof createOrganizationDirectory>; };

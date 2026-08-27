@@ -1,0 +1,48 @@
+# pre-commit hook definitions for jso-protector.
+#
+# Consumers add this repo (or pin a release tag) to their
+# `.pre-commit-config.yaml` to run JSO validation against staged JavaScript
+# before every commit.
+#
+# This is intentionally a release-check / dry-run pass, NOT a full protect.
+# A full protect would post source to the JSO API on every commit, which is
+# the wrong place for that work — it belongs in CI. The hook below catches
+# config drift and credential misconfiguration locally so a developer
+# doesn't push a release that will fail in CI 20 minutes later.
+
+- id: jso-release-check
+  name: JSO release-check (dry-run)
+  description: >-
+    Run jso-protector --release-check against the staged JS to catch config
+    drift before commit. Does not POST source to the API. Requires Node and
+    the jso-protector package (npm install --save-dev jso-protector).
+  entry: npx --no-install jso-protector --config jso.config.json --release-check --json
+  language: system
+  files: '\.(js|jsx|mjs|cjs|ts|tsx)$'
+  pass_filenames: false
+  stages: [pre-commit]
+
+- id: jso-dry-run
+  name: JSO dry-run (file enumeration)
+  description: >-
+    Run jso-protector --dry-run to confirm the file list that WOULD be sent
+    to the API matches expectations. Catches the "I added a new vendor file
+    nobody intended to protect" class of mistakes.
+  entry: npx --no-install jso-protector --config jso.config.json --dry-run --json
+  language: system
+  files: '\.(js|jsx|mjs|cjs|ts|tsx)$'
+  pass_filenames: false
+  stages: [pre-commit, pre-push]
+
+- id: jso-credential-leak
+  name: JSO credential-leak scan (eslint)
+  description: >-
+    Run eslint-plugin-jso-protector against staged JS/TS files to catch
+    hardcoded JSO API tokens and credential-named property leaks BEFORE
+    they enter git history. Auto-fixes to process.env on commit. Requires
+    eslint and eslint-plugin-jso-protector installed as dev dependencies.
+  entry: npx --no-install eslint --no-eslintrc --fix --rule "jso-protector/no-hardcoded-jso-credentials:error" --rule "jso-protector/prefer-env-credentials:warn" --plugin jso-protector
+  language: system
+  files: '\.(js|jsx|mjs|cjs|ts|tsx)$'
+  pass_filenames: true
+  stages: [pre-commit]

@@ -1,0 +1,670 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.javascriptobfuscator.com/schemas/jso-protector-config.schema.json",
+  "title": "jso-protector configuration",
+  "description": "Configuration for the jso-protector CLI and JavaScript Obfuscator HTTP API workflows.",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "countermeasures": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "RASP active countermeasures fired on tamper detection. See runtime/countermeasures.js.",
+      "properties": {
+        "onTamper": {
+          "oneOf": [
+            { "type": "string", "enum": ["log", "break", "deleteCookies", "selfDestruct", "redirect", "callback"] },
+            { "type": "array", "items": { "type": "string", "enum": ["log", "break", "deleteCookies", "selfDestruct", "redirect", "callback"] } }
+          ],
+          "description": "Action(s) fired on a tamper event. 'log' is always implicit. Array values fire in order."
+        },
+        "redirectUrl": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "description": "Safe redirect target. http:// or https:// only; javascript: schemes are rejected."
+        },
+        "selfDestruct": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mode": { "type": "string", "enum": ["blank-body", "crashWithMemory", "crashTimeout"] }
+          },
+          "description": "Escalation tier for the selfDestruct action."
+        },
+        "allowList": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Whitelist of actions allowed in this environment. onTamper is rejected if it references actions outside this list. Use in dev to prevent destructive escalations."
+        }
+      }
+    }
+  },
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON schema reference used by editors."
+    },
+    "endpoint": {
+      "type": "string",
+      "format": "uri",
+      "default": "https://javascriptobfuscator.com/HttpApi.ashx"
+    },
+    "apiKey": {
+      "type": "string",
+      "description": "Base64 API key copied from the dashboard, or an environment reference such as $JSO_API_KEY."
+    },
+    "apiPassword": {
+      "type": "string",
+      "description": "Base64 API password copied from the dashboard, or an environment reference such as $JSO_API_PASSWORD."
+    },
+    "projectName": {
+      "type": "string",
+      "default": "browser-release"
+    },
+    "input": {
+      "type": "string",
+      "default": "dist"
+    },
+    "output": {
+      "type": "string",
+      "default": "dist-protected"
+    },
+    "preset": {
+      "type": "string",
+      "enum": ["standard", "balanced", "maximum"],
+      "default": "balanced"
+    },
+    "optionsPreset": {
+      "type": "string",
+      "description": "javascript-obfuscator compatibility preset. default/low maps to standard, medium maps to balanced, high maps to maximum."
+    },
+    "stringArray": {
+      "type": "boolean",
+      "description": "javascript-obfuscator compatibility option mapped to MoveStrings."
+    },
+    "stringArrayEncoding": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ],
+      "description": "javascript-obfuscator compatibility option mapped to EncodeStrings or EncryptStrings."
+    },
+    "stringArrayThreshold": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Direct javascript-obfuscator mapping to StringArrayThreshold. Applies per-unique-literal probability and is reproducible under Seed."
+    },
+    "unicodeEscapeSequence": {
+      "type": "boolean",
+      "description": "javascript-obfuscator compatibility option mapped to EncodeStrings."
+    },
+    "controlFlowFlattening": {
+      "type": "boolean",
+      "description": "javascript-obfuscator compatibility option mapped to DeepObfuscate and FlatTransform."
+    },
+    "deadCodeInjection": {
+      "type": "boolean",
+      "description": "javascript-obfuscator compatibility option mapped to AddDeadCode."
+    },
+    "deadCodeInjectionThreshold": {
+      "type": "number",
+      "minimum": 0,
+      "description": "javascript-obfuscator compatibility threshold mapped to DeadcodeLevel."
+    },
+    "identifierNamesGenerator": {
+      "type": "string",
+      "description": "javascript-obfuscator compatibility option mapped to IdentityStyle."
+    },
+    "renameGlobals": {
+      "type": "boolean",
+      "description": "javascript-obfuscator compatibility option mapped to RenameGlobals."
+    },
+    "renameProperties": {
+      "type": "boolean",
+      "description": "javascript-obfuscator compatibility option mapped to RenameMembers."
+    },
+    "domainLock": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ],
+      "description": "javascript-obfuscator compatibility option mapped to LockDomain and LockDomainList."
+    },
+    "compact": {
+      "type": "boolean",
+      "description": "javascript-obfuscator compatibility option mapped to compression or formatted output."
+    },
+    "target": {
+      "type": "string",
+      "description": "javascript-obfuscator compatibility runtime target mapped to OptimizationMode."
+    },
+    "debugProtection": {
+      "type": "boolean",
+      "description": "javascript-obfuscator compatibility option mapped directly to the hosted DebugProtection engine guard. Runtime behavior must still be smoke-tested."
+    },
+    "debugProtectionInterval": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 60000,
+      "description": "javascript-obfuscator compatibility interval mapped directly to DebugProtectionIntervalMilliseconds. Use 0 or 100-60000 milliseconds."
+    },
+    "disableConsoleOutput": {
+      "type": "boolean",
+      "description": "javascript-obfuscator compatibility option mapped directly to DisableConsoleOutput."
+    },
+    "domainLockRedirectUrl": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "description": "javascript-obfuscator compatibility option mapped directly to the domain-lock-specific LockDomainRedirectUrl after safe-scheme validation."
+    },
+    "forceTransformStrings": {
+      "type": "array",
+	  "maxItems": 100,
+	  "items": { "type": "string", "maxLength": 512 },
+      "description": "javascript-obfuscator compatibility regex patterns mapped directly to ForceTransformStrings. Matching literals override ReservedStrings and pass through enabled string transforms."
+    },
+    "identifiersDictionary": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "javascript-obfuscator review-only compatibility field. Accepted for migration review."
+    },
+    "identifiersPrefix": {
+      "type": "string",
+      "description": "javascript-obfuscator review-only compatibility field. Accepted for migration review."
+    },
+    "identifierNamesCache": {
+      "type": ["object", "null"],
+      "description": "javascript-obfuscator review-only compatibility field. Accepted for migration review."
+    },
+    "identifierNamesCachePath": {
+      "type": "string",
+      "description": "javascript-obfuscator review-only compatibility field. Accepted for migration review."
+    },
+    "inputFileName": {
+      "type": "string",
+      "description": "javascript-obfuscator review-only compatibility field. Accepted for migration review."
+    },
+    "log": {
+      "type": "boolean",
+      "description": "javascript-obfuscator review-only compatibility field. Accepted for migration review."
+    },
+    "numbersToExpressions": {
+      "type": "boolean",
+      "description": "Approximate javascript-obfuscator compatibility mapping to EncodeNumbers. Numeric literals are obscured, but generated expression shape is not preserved."
+    },
+    "renamePropertiesMode": {
+      "type": "string",
+      "description": "javascript-obfuscator review-only compatibility field. Accepted for migration review."
+    },
+    "reservedStrings": {
+      "type": "array",
+	  "maxItems": 100,
+      "items": { "type": "string", "maxLength": 512 },
+	  "description": "javascript-obfuscator compatibility regex patterns mapped directly to ReservedStrings. Matching literals remain verbatim outside MoveStrings and EncodeStrings; each pattern is limited to 512 characters."
+    },
+    "seed": {
+      "type": ["string", "number"],
+      "description": "Deterministic seed for reproducible builds: the same input, options, and seed produce byte-identical output. Omit for the default per-build polymorphic output. An integer is used directly; any other string folds to a stable value. Forwarded to the engine as the Seed option (also settable via --seed or options.Seed)."
+    },
+    "selfDefending": {
+      "type": "boolean",
+      "description": "javascript-obfuscator compatibility option mapped directly to the hosted SelfDefending engine guard. Runtime behavior must still be smoke-tested."
+    },
+    "simplify": {
+      "type": "boolean",
+      "description": "javascript-obfuscator review-only compatibility field. Accepted for migration review."
+    },
+    "sourceMap": {
+      "type": "boolean",
+      "description": "javascript-obfuscator review-only compatibility field. Accepted for migration review."
+    },
+    "sourceMapBaseUrl": {
+      "type": "string",
+      "description": "javascript-obfuscator review-only compatibility field. Accepted for migration review."
+    },
+    "sourceMapFileName": {
+      "type": "string",
+      "description": "javascript-obfuscator review-only compatibility field. Accepted for migration review."
+    },
+    "sourceMapMode": {
+      "type": "string",
+      "description": "javascript-obfuscator review-only compatibility field. Accepted for migration review."
+    },
+    "sourceMapSourcesMode": {
+      "type": "string",
+      "description": "javascript-obfuscator review-only compatibility field. Accepted for migration review."
+    },
+    "strictMode": {
+      "type": ["boolean", "null"],
+      "description": "javascript-obfuscator review-only compatibility field. Accepted for migration review."
+    },
+    "splitStrings": {
+      "type": "boolean",
+      "description": "javascript-obfuscator compatibility option mapped directly to SplitStrings. Eligible literals are emitted as fixed-length concatenated chunks."
+    },
+    "splitStringsChunkLength": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1024,
+      "description": "Chunk length mapped directly to SplitStringsChunkLength; defaults to 10 when omitted."
+    },
+    "stringArrayCallsTransform": {
+      "type": "boolean",
+      "description": "Direct javascript-obfuscator mapping to StringArrayCallsTransform. Adds secondary index-table indirection."
+    },
+    "stringArrayCallsTransformThreshold": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Direct javascript-obfuscator mapping to StringArrayCallsTransformThreshold. Applies per-lookup indirection probability."
+    },
+    "stringArrayIndexShift": {
+      "type": "boolean",
+      "description": "Approximate javascript-obfuscator mapping to StringArrayIndexShift. Adds a nonzero table offset; vendor-specific randomized magnitude is not reproduced."
+    },
+    "stringArrayShuffle": {
+      "type": "boolean",
+      "description": "Direct javascript-obfuscator mapping to StringArrayShuffle. Randomizes moved-string table order while preserving lookups."
+    },
+    "stringArrayIndexesType": {
+      "oneOf": [
+        { "type": "string", "enum": ["hexadecimal-number", "hexadecimal-numeric-string"] },
+        { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "enum": ["hexadecimal-number", "hexadecimal-numeric-string"] } }
+      ],
+      "description": "Direct javascript-obfuscator mapping to StringArrayIndexesType. Supports numeric and numeric-string hexadecimal lookups."
+    },
+    "stringArrayRotate": {
+      "type": "boolean",
+      "description": "Direct javascript-obfuscator mapping to StringArrayRotate. Cyclically rotates moved-string table order by a per-build offset."
+    },
+    "stringArrayWrappersChainedCalls": {
+      "type": "boolean",
+      "description": "Direct mapping controlling whether native string-table wrappers delegate through predecessors."
+    },
+    "stringArrayWrappersCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10,
+      "description": "Approximate mapping to 0-10 native root-level wrappers; competitor per-scope placement is not reproduced."
+    },
+    "stringArrayWrappersParametersMaxCount": {
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 5,
+      "description": "Direct mapping for function-wrapper parameter count ceiling."
+    },
+    "stringArrayWrappersType": {
+      "type": "string",
+      "enum": ["variable", "function"],
+      "description": "Direct mapping selecting variable aliases or function wrappers."
+    },
+    "ignoreImports": {
+      "type": "boolean",
+      "description": "javascript-obfuscator compatibility field. Preserves import/export-from statements and common static require/import() statements before sending the remaining code to the hosted API."
+    },
+    "transformObjectKeys": {
+      "type": "boolean",
+      "description": "Approximate mapping to TransformObjectKeys. Safe identifier and quoted data keys move into computed lookups; semantic-sensitive keys remain literal."
+    },
+    "webPreset": {
+      "type": "string",
+      "description": "Path to an exported online-obfuscator JSON preset."
+    },
+    "extensions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [".js", ".jsx"]
+    },
+    "markupExtensions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Template/markup extensions that use parseHtml inline-script protection. Defaults include .html, .htm, .php, .phtml, .asp, .aspx, .jsp, .cshtml, and .vbhtml."
+    },
+    "include": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Bundle-plugin include patterns matched against emitted asset names."
+    },
+    "exclude": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": ["**/*.map", "**/node_modules/**", "**/*-obfuscated.js"]
+    },
+    "copyAssets": {
+      "type": "boolean",
+      "default": true
+    },
+    "parseHtml": {
+      "type": "boolean",
+      "default": false,
+      "description": "Protect inline scripts marked with data-javascript-obfuscator in configured markup/template files."
+    },
+    "honorConditionalComments": {
+      "type": "boolean",
+      "default": false,
+      "description": "Preserve code between javascript-obfuscator:disable and javascript-obfuscator:enable comments instead of failing on those markers."
+    },
+    "protectMarkedComments": {
+      "type": "boolean",
+      "default": false,
+      "description": "Protect only code between javascript-obfuscator:protect-begin and javascript-obfuscator:protect-end comments instead of sending the whole file."
+    },
+    "keepHeaderComment": {
+      "type": "boolean",
+      "description": "Convenience alias for options.KeepComment."
+    },
+    "targetVersion": {
+      "type": "string",
+      "enum": ["es5", "modern"],
+      "description": "Convenience alias for options.TargetVersion. es5 (default) down-levels ES2015+ syntax; modern keeps native syntax for current browsers."
+    },
+    "downlevelIteration": {
+      "type": "boolean",
+      "description": "Convenience alias for options.DownlevelIteration: spec-faithful ES5 for-of lowering (lazy stepping + IteratorClose), at a per-step cost on arrays. No effect when targetVersion is modern."
+    },
+    "protectObjectDeclaration": {
+      "type": "boolean",
+      "description": "Convenience alias for options.ReorderCodeObjectDeclare."
+    },
+    "moveNestedFunction": {
+      "type": "boolean",
+      "description": "Convenience alias for options.MoveNested."
+    },
+    "formattedOutput": {
+      "type": "boolean",
+      "description": "Convenience alias for options.WriteFormats."
+    },
+    "keepIndent": {
+      "type": "boolean",
+      "description": "Convenience alias for options.WriteFormats_KeepIndent."
+    },
+    "lineNumbers": {
+      "type": "boolean",
+      "description": "Convenience alias for options.WriteFormats_LineNumbers."
+    },
+    "lockDomainSubdomains": {
+      "type": "boolean",
+      "description": "Convenience alias for options.LockDomainSubs."
+    },
+    "lockDomainMessage": {
+      "type": "string",
+      "description": "Convenience alias for options.LockDomainMsg."
+    },
+    "lockDate": {
+      "type": "boolean",
+      "description": "Convenience alias for options.LockDate."
+    },
+    "lockDateValue": {
+      "type": "string",
+      "pattern": "^[0-9]{8}$",
+      "description": "Convenience alias for options.LockDateValue."
+    },
+    "lockDateMessage": {
+      "type": "string",
+      "description": "Convenience alias for options.LockDateMsg."
+    },
+    "selfHealing": {
+      "type": "boolean",
+      "description": "Convenience alias for options.SelfHealing. Requires SelfDefending and is browser-only."
+    },
+    "selfDefendingIntervalSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 86400,
+      "description": "Convenience alias for options.SelfDefendingIntervalSeconds. Repeats browser integrity checks; omit for invocation-only checks."
+    },
+    "debugProtectionIntervalMilliseconds": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 60000,
+      "description": "Native debug timing interval. Use 0 to disable periodic timing probes or 100-60000 milliseconds."
+    },
+    "selfHealingMaxAttempts": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "description": "Convenience alias for options.SelfHealingMaxAttempts."
+    },
+    "antiMonkeyPatching": {
+      "type": "boolean",
+      "description": "Convenience alias for options.AntiMonkeyPatching. Browser-only."
+    },
+    "antiMonkeyPatchingCleanRealm": {
+      "type": "boolean",
+      "description": "Convenience alias for options.AntiMonkeyPatchingCleanRealm."
+    },
+    "antiMonkeyPatchingIncludeGlobals": {
+      "type": "string",
+      "description": "Comma/newline-separated dotted API paths added to the anti-monkey-patching watch list."
+    },
+    "antiMonkeyPatchingExcludeGlobals": {
+      "type": "string",
+      "description": "Comma/newline-separated dotted API paths removed from the anti-monkey-patching watch list."
+    },
+    "runtimeDefenseAction": {
+      "type": "string",
+      "enum": ["throw", "blank", "redirect", "reload", "callback", "degrade"],
+      "description": "Convenience alias for options.RuntimeDefenseAction."
+    },
+    "runtimeDefenseCallback": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "description": "Convenience alias for options.RuntimeDefenseCallback. Dotted global callback path."
+    },
+    "runtimeDefenseRedirectUrl": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "description": "Convenience alias for options.RuntimeDefenseRedirectUrl. Use HTTP(S) or a same-origin root-relative path."
+    },
+    "jsConfuserLockAntiDebug": {
+      "oneOf": [
+        { "type": "boolean" },
+        { "type": "number", "minimum": 0 }
+      ],
+      "description": "Approximate JS-Confuser compatibility mapping to DebugProtection. Numeric probability values collapse to enabled/disabled."
+    },
+    "stringSplitting": {
+      "oneOf": [
+        { "type": "boolean" },
+        { "type": "number", "minimum": 0, "maximum": 1 }
+      ],
+      "description": "Approximate JS-Confuser compatibility mapping to SplitStrings. Numeric probability collapses to enabled when greater than zero; selector functions require manual migration review."
+    },
+    "jsConfuserLockIntegrity": {
+      "oneOf": [
+        { "type": "boolean" },
+        { "type": "number", "minimum": 0 }
+      ],
+      "description": "Approximate JS-Confuser compatibility mapping to SelfDefending. Numeric probability values collapse to enabled/disabled."
+    },
+    "jsConfuserLockSelfDefending": {
+      "oneOf": [
+        { "type": "boolean" },
+        { "type": "number", "minimum": 0 }
+      ],
+      "description": "Approximate JS-Confuser compatibility mapping to SelfDefending. Numeric probability values collapse to enabled/disabled."
+    },
+    "jsConfuserLockStartDate": {
+      "type": "string",
+      "description": "Approximate JS-Confuser compatibility mapping to LockStartDate and LockStartDateValue."
+    },
+    "jsConfuserLockCountermeasures": {
+      "type": "string",
+      "description": "JS-Confuser review-only compatibility field. Preserves lock.countermeasures intent for manual review."
+    },
+    "jsConfuserLockTamperProtection": {
+      "oneOf": [
+        { "type": "boolean" },
+        { "type": "number", "minimum": 0 }
+      ],
+      "description": "Approximate JS-Confuser compatibility mapping to AntiMonkeyPatching. Numeric probability values collapse to enabled/disabled."
+    },
+    "assetExclude": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": ["**/*.map"]
+    },
+    "mixedServer": {
+      "type": "boolean",
+      "default": false
+    },
+    "local": {
+      "type": "boolean",
+      "default": false,
+      "description": "Protect on this machine with the bundled jso-local executable instead of sending source to the hosted API. Windows only; a source-free plan check still runs online."
+    },
+    "localExe": {
+      "type": "string",
+      "description": "Path to cli/jso-local.exe from the Windows desktop download. Defaults to JSO_LOCAL_EXE, then the usual install locations."
+    },
+    "reservedNames": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Regular expressions for public names to preserve. Mapped to VariableExclusion."
+    },
+    "variableExclusion": {
+      "type": "string",
+      "description": "Multiline Variable Exclusion List sent directly to the API."
+    },
+    "removeSourceMaps": {
+      "type": "boolean",
+      "default": true,
+      "description": "Bundle-plugin option. Removes stale JavaScript source maps after protection."
+    },
+    "manifest": {
+      "type": "string",
+      "description": "Path to a JSON protection manifest written after a successful CLI or bundle-plugin run."
+    },
+    "report": {
+      "type": "string",
+      "description": "Path to write the full API response JSON (BuildId, PolymorphismFingerprint, identifier maps, audit metadata). Pair with jso-symbolicate for stack-trace demangling."
+    },
+    "label": {
+      "type": "string",
+      "description": "Release label tagged on the API request as ReleaseLabel (e.g. git SHA or CI build number). Surfaces in the JSO dashboard audit log. Reads JSO_LABEL / JAVASCRIPT_OBFUSCATOR_LABEL from env when omitted."
+    },
+    "namedSets": {
+      "type": "object",
+      "description": "Named configuration sets - apply different protection profiles to different parts of one app. Each set has a 'match' array of globs and any subset of the top-level keys (preset, options, countermeasures). First-matching set wins; write sets in priority order. See /Docs/NamedSets.aspx.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "match": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "File globs that select this set. Supports **, *, ?, [a-z], {a,b}."
+          },
+          "preset": {
+            "type": "string",
+            "enum": ["standard", "balanced", "maximum"]
+          },
+          "options": {
+            "type": "object",
+            "description": "Per-set options. Merged on top of the top-level options."
+          },
+          "countermeasures": { "$ref": "#/$defs/countermeasures" }
+        },
+        "required": ["match"],
+        "additionalProperties": false
+      }
+    },
+    "countermeasures": {
+      "$ref": "#/$defs/countermeasures",
+      "description": "Top-level RASP active countermeasures applied to every file unless overridden by a namedSets entry. See /Docs/RuntimeDefense.aspx#countermeasures."
+    },
+    "watermark": {
+      "type": "string",
+      "description": "Tag to embed as an HMAC-SHA256 watermark in every protected file's header comment. Requires watermarkKey. Verifiable with --verify-watermark / --scan-watermarks. Wire format: /Docs/WireFormat.aspx#watermark"
+    },
+    "watermarkKey": {
+      "type": "string",
+      "description": "HMAC secret for watermark signing. Reads JSO_WATERMARK_KEY from env when omitted. Should be stored in a CI secret, not committed to the config file."
+    },
+    "maxOutputBytes": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Fail the CLI or bundle-plugin run if any protected JavaScript file is larger than this many bytes."
+    },
+    "maxGrowthRatio": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Fail the CLI or bundle-plugin run if any protected JavaScript file grows beyond sourceBytes multiplied by this ratio."
+    },
+    "options": {
+      "type": "object",
+      "description": "Advanced HTTP API options. Explicit values override the selected preset.",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "null", "array", "object"]
+      },
+      "properties": {
+        "EncodeStrings": { "type": "boolean" },
+        "MoveStrings": { "type": "boolean" },
+        "SplitStrings": { "type": "boolean" },
+        "SplitStringsChunkLength": { "type": "integer", "minimum": 1, "maximum": 1024 },
+        "StringArrayIndexShift": { "type": "boolean" },
+        "StringArrayShuffle": { "type": "boolean" },
+        "StringArrayRotate": { "type": "boolean" },
+        "StringArrayIndexesType": { "type": "string", "pattern": "^(hexadecimal-number|hexadecimal-numeric-string)(\\n(hexadecimal-number|hexadecimal-numeric-string))*$" },
+        "StringArrayThreshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "StringArrayCallsTransform": { "type": "boolean" },
+        "StringArrayCallsTransformThreshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "StringArrayWrappersCount": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "StringArrayWrappersChainedCalls": { "type": "boolean" },
+        "StringArrayWrappersParametersMaxCount": { "type": "integer", "minimum": 2, "maximum": 5 },
+        "StringArrayWrappersType": { "type": "string", "enum": ["variable", "function"] },
+        "TransformObjectKeys": { "type": "boolean" },
+        "ReplaceNames": { "type": "boolean" },
+        "RenameGlobals": { "type": "boolean" },
+        "RenameMembers": { "type": "boolean" },
+        "MoveMembers": { "type": "boolean" },
+        "SelfCompression": { "type": "boolean" },
+        "SelfCompressionMinSize": { "type": "number" },
+        "CompressionRatio": { "type": "string", "enum": ["Auto", "Low", "Medium", "High", "Best"] },
+        "DeepObfuscate": { "type": "boolean" },
+        "ReorderCode": { "type": "boolean" },
+        "AddDeadCode": { "type": "boolean" },
+        "DeadcodeLevel": { "type": "string", "enum": ["Low", "Medium", "High"] },
+        "EncryptStrings": { "type": "boolean" },
+        "FlatTransform": { "type": "boolean" },
+        "IdentityStyle": { "type": "string", "enum": ["v1hex", "v2abcd"] },
+        "OptimizationMode": { "type": "string", "enum": ["Auto", "Web", "Html5", "Game", "Mobile", "NodeJS"] },
+        "VariableExclusion": { "type": "string" },
+        "WriteFormats": { "type": "boolean" },
+        "WriteFormats_KeepIndent": { "type": "boolean" },
+        "WriteFormats_LineNumbers": { "type": "boolean" },
+        "KeepComment": { "type": "boolean" },
+        "ReorderCodeObjectDeclare": { "type": "boolean" },
+        "MoveNested": { "type": "boolean" },
+        "LockDomain": { "type": "boolean" },
+        "LockDomainSubs": { "type": "boolean" },
+        "LockDomainList": { "type": "string" },
+        "LockDomainMsg": { "type": "string" },
+        "LockDate": { "type": "boolean" },
+        "LockDateValue": { "type": "string", "pattern": "^[0-9]{8}$" },
+        "LockDateMsg": { "type": "string" },
+        "LockStartDate": { "type": "boolean" },
+        "LockStartDateValue": { "type": "string", "pattern": "^[0-9]{8}$" },
+        "LockStartDateMsg": { "type": "string" },
+        "LockBrowser": { "type": "boolean" },
+        "LockBrowserList": { "type": "string" },
+        "LockBrowserMsg": { "type": "string" },
+        "LockOS": { "type": "boolean" },
+        "LockOSList": { "type": "string" },
+        "LockOSMsg": { "type": "string" },
+        "SelfDefending": { "type": "boolean" },
+        "SelfHealing": { "type": "boolean" },
+        "SelfHealingMaxAttempts": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "AntiMonkeyPatching": { "type": "boolean" },
+        "AntiMonkeyPatchingCleanRealm": { "type": "boolean" },
+        "AntiMonkeyPatchingIncludeGlobals": { "type": "string" },
+        "AntiMonkeyPatchingExcludeGlobals": { "type": "string" },
+        "RuntimeDefenseAction": { "type": "string", "enum": ["throw", "blank", "redirect", "reload", "callback", "degrade"] }
+      }
+    }
+  }
+}

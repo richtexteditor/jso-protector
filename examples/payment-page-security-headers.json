@@ -1,0 +1,46 @@
+{
+  "format": "jso-payment-page-security-headers",
+  "version": 1,
+  "sourceFree": true,
+  "generatedUtc": "2026-06-08T00:00:00Z",
+  "pages": [
+    {
+      "pageUrl": "https://shop.example/checkout",
+      "statusCode": 200,
+      "observedUtc": "2026-06-08T00:00:00Z",
+      "checkoutSurface": "parent-checkout",
+      "frameContext": "parent-page",
+      "frameOwner": "Web Platform",
+      "headers": {
+        "content-security-policy": "default-src 'self'; script-src 'self' https://js.stripe.com; frame-src https://js.stripe.com; connect-src 'self' https://api.example.test; report-uri https://csp.example.test/report",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-frame-options": "DENY",
+        "referrer-policy": "strict-origin-when-cross-origin",
+        "permissions-policy": "payment=(self)"
+      },
+      "headerSha256": "replace-with-sha256-over-canonical-header-snapshot",
+      "baselineSha256": "replace-with-approved-baseline-sha256",
+      "matchesBaseline": "match",
+      "monitor": "checkout-header-smoke",
+      "alertRoute": "security-response"
+    },
+    {
+      "pageUrl": "https://shop.example/checkout/embedded-card-frame",
+      "statusCode": 200,
+      "observedUtc": "2026-06-08T00:00:10Z",
+      "checkoutSurface": "psp-iframe",
+      "frameContext": "psp-iframe",
+      "frameOwner": "Payments",
+      "headers": {
+        "content-security-policy": "default-src 'none'; script-src https://js.stripe.com; report-to csp-endpoint",
+        "content-security-policy-report-only": "default-src 'none'; report-to csp-endpoint",
+        "reporting-endpoints": "csp-endpoint=\"https://csp.example.test/report\""
+      },
+      "headerSha256": "replace-with-sha256-over-canonical-header-snapshot",
+      "baselineSha256": "replace-with-approved-baseline-sha256",
+      "matchesBaseline": "match",
+      "monitor": "checkout-header-smoke",
+      "alertRoute": "security-response"
+    }
+  ]
+}

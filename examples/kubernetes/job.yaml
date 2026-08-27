@@ -1,0 +1,123 @@
+# Standalone Kubernetes Job for jso-protector.
+#
+# Use this when you want a one-shot protection run without bringing in
+# Tekton or Argo. The Job:
+#   1. Clones your repo (init container).
+#   2. Runs jso-protector against the built JavaScript.
+#   3. Uploads the protected dist + jso-report.json to an S3-compatible store.
+#
+# kubectl apply -f job.yaml
+#
+# Prereqs:
+#   - Secret `jso-credentials` with keys JSO_API_KEY / JSO_API_PASSWORD.
+#   - Secret `git-credentials` with keys username / token (for private repos).
+#   - Secret `s3-credentials` with keys AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY.
+#
+# Adjust REPO_URL, COMMIT_SHA, and the S3 bucket placeholders below.
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: jso-protect
+  labels:
+    app.kubernetes.io/name: jso-protector
+    app.kubernetes.io/component: release-protection
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400   # auto-cleanup 1 day after completion
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jso-protector
+    spec:
+      restartPolicy: Never
+
+      initContainers:
+        - name: checkout
+          image: alpine/git:2.43.0
+          env:
+            - name: REPO_URL
+              value: "https://github.com/your-org/your-repo.git"
+            - name: COMMIT_SHA
+              value: "main"
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              cd /workspace
+              git clone --depth 1 --branch "$COMMIT_SHA" "$REPO_URL" .
+              echo "Checked out $(git rev-parse HEAD)"
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+
+      containers:
+        - name: protect
+          image: node:22-alpine
+          workingDir: /workspace
+          envFrom:
+            - secretRef:
+                name: jso-credentials
+          env:
+            - name: CI
+              value: "true"
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              # Get the actual SHA so --label is precise even when REPO_URL
+              # pointed at a branch.
+              cd /workspace
+              SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+
+              echo "==> npm ci"
+              npm ci --no-audit --no-fund
+              echo "==> npm run build"
+              npm run build
+              echo "==> jso-protector release-check"
+              npx jso-protector --config jso.config.json --release-check --json
+              echo "==> jso-protector competitor gap report"
+              npx jso-protector --config jso.config.json --competitor-gap-report --json
+              echo "==> jso-protector protect"
+              npx jso-protector \
+                --config jso.config.json \
+                --label "$SHA" \
+                --manifest dist-protected/jso-manifest.json \
+                --report   dist-protected/jso-report.json
+
+              ls -la dist-protected/
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+
+      # OPTIONAL: side-car that uploads dist-protected/ to S3 after the
+      # protect container exits. If you have your own artifact uploader,
+      # remove this whole container.
+      # Tip: Job containers run in parallel; use an emptyDir + a wait
+      # script if you need strict ordering. The simplest production wiring
+      # is to push from the protect container itself (combine the two).
+
+      volumes:
+        - name: workspace
+          emptyDir: {}
+
+---
+# Companion: the Secret manifest. Apply once per cluster.
+# Replace the placeholders with base64-encoded credentials.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jso-credentials
+type: Opaque
+stringData:
+  JSO_API_KEY: "REPLACE-WITH-BASE64-API-KEY-FROM-DASHBOARD"
+  JSO_API_PASSWORD: "REPLACE-WITH-BASE64-API-PASSWORD-FROM-DASHBOARD"

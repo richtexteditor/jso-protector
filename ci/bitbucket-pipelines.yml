@@ -1,0 +1,44 @@
+# Bitbucket Pipelines template for jso-protector.
+#
+# Drop this at bitbucket-pipelines.yml in your repo. Add JSO_API_KEY and
+# JSO_API_PASSWORD as repository variables (Settings �?Pipelines �?Repository
+# variables, secured).
+#
+# Every protection run is tagged with $BITBUCKET_COMMIT and the API report
+# travels alongside the protected dist as a pipeline artifact for later
+# stack-trace symbolication.
+
+image: node:22
+
+pipelines:
+  branches:
+    main:
+      - step:
+          name: Build and protect
+          caches:
+            - node
+          script:
+            - npm ci
+            - npm run build
+            - npx jso-protector --config jso.config.json --release-check --json
+            - >
+              npx jso-protector
+              --config jso.config.json
+              --label "$BITBUCKET_COMMIT"
+              --manifest dist-protected/jso-manifest.json
+              --report dist-protected/jso-report.json
+              # Optional: migration and supply-chain checks. Copy into a preflight/protect step as needed.
+              # Configure JSO_WATERMARK_KEY as a masked secret; check in ci-key.pub.pem,
+              # store ci-key.priv.pem in a CI file secret. See WireFormat.aspx#watermark.
+              #   npx jso-protector --config jso.config.json --competitor-gap-report --json  # competitor migration gap report
+              #   npx jso-protector --source-map-evidence dist-protected/jso-manifest.json --source-map-evidence-output reports/source-map-evidence.json --json  # source-map absence evidence
+              #   npx jso-protector --script-inventory-audit reports/payment-script-inventory.json --runtime-inventory-snapshot reports/runtime-inventory.json --script-inventory-audit-output reports/payment-script-inventory-audit.json --json  # payment-page script drift gate
+              #   npx jso-protector --payment-page-headers-from-har reports/checkout.har --payment-page-headers-baseline reports/payment-page-headers.baseline.json --payment-page-headers-output reports/payment-page-headers.json --payment-page-url-pattern "checkout|payment|wallet" --json  # payment-page security-header evidence
+              #   --ai-precheck --ai-precheck-fail-on error      # AI compat scan gate
+              #   --estimate                                     # pre-flight quota gate
+              #   --watermark "$COMMIT_SHA"                      # HMAC marker (needs JSO_WATERMARK_KEY env)
+              #   --sign-release ci-key.priv.pem                 # Ed25519 attestation -> .manifest.json.sig
+              #   --local                                        # protect on the runner, no source upload (Windows agents only)
+            - npm run smoke --if-present
+          artifacts:
+            - dist-protected/**

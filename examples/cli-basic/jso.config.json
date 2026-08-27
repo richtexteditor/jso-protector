@@ -1,0 +1,15 @@
+{
+  "$schema": "../../jso.config.schema.json",
+  "apiKey": "$JSO_API_KEY",
+  "apiPassword": "$JSO_API_PASSWORD",
+  "projectName": "cli-example",
+  "input": "dist",
+  "output": "dist-protected",
+  "preset": "balanced",
+  "exclude": ["**/*.map", "**/vendor/**", "**/*-obfuscated.js"],
+  "copyAssets": true,
+  "assetExclude": ["**/*.map"],
+  "parseHtml": false,
+  "honorConditionalComments": false,
+  "reservedNames": ["^PublicApi$", "^renderWidget$"]
+}

@@ -1,0 +1,75 @@
+{
+  "_meta": {
+    "standard": "PCI DSS",
+    "version": "4.0.1",
+    "publisher": "PCI Security Standards Council",
+    "publishedDate": "2024-06",
+    "compliance_deadline": "2025-03-31",
+    "scope_note": "Only the controls JSO directly contributes evidence to. Customers are responsible for the broader QSA-led assessment.",
+    "spec_url": "https://www.pcisecuritystandards.org/document_library/?category=pcidss"
+  },
+  "controls": [
+    {
+      "id": "6.4.3",
+      "title": "Payment page scripts that are loaded and executed in the consumer's browser are managed.",
+      "subRequirements": [
+        {
+          "id": "6.4.3.a",
+          "title": "A method is implemented to confirm that each script is authorized.",
+          "jso_evidence_primitives": ["watermark", "payment_page_script_inventory"],
+          "description": "JSO HMAC-SHA256 watermarks (--watermark <tag> --watermark-key <key>) inject a signed header into every protected file. Verification re-derives the HMAC in constant time. A file with a valid signature under your secret key is, by definition, an authorized script."
+        },
+        {
+          "id": "6.4.3.b",
+          "title": "A method is implemented to assure the integrity of each script.",
+          "jso_evidence_primitives": ["ed25519_release_attestation", "per_file_sha256"],
+          "description": "JSO Ed25519-signed release attestation (--sign-release <priv.pem>) commits to per-file sha256 in a canonical-JSON-signed envelope. Stage-2 verification re-hashes the on-disk files. Any post-signing byte change breaks the signature."
+        },
+        {
+          "id": "6.4.3.c",
+          "title": "An inventory of all scripts is maintained with written business or technical justification.",
+          "jso_evidence_primitives": ["manifest_files_array", "payment_page_script_inventory"],
+          "description": "The manifest.json's files[] array is the technical inventory for protected first-party files. Add --script-inventory with a payment-page script CSV or JSON export when reviewers need authorization and written business justification for every script loaded on the page."
+        }
+      ]
+    },
+    {
+      "id": "11.6.1",
+      "title": "A change- and tamper-detection mechanism is deployed for payment pages.",
+      "subRequirements": [
+        {
+          "id": "11.6.1.a",
+          "title": "Detects unauthorized modification (including IoCs, changes, additions, and deletions) of HTTP headers and contents of payment pages as received by the consumer browser.",
+          "jso_evidence_primitives": ["runtime_defense_integrity_heartbeat", "self_defending", "watermark_in_browser", "dashboard_runtime_incident_export"],
+          "description": "JSO Runtime Defense modules ship an integrity heartbeat, devtools/debug protection, headless detection, and tamper-aware self-defending IIFE. The watermark also remains in the protected script, so an in-browser verifier can confirm the served bytes match the signed build."
+        },
+        {
+          "id": "11.6.1.b",
+          "title": "Performs the function at least once every seven days OR per the targeted risk analysis cadence.",
+          "jso_evidence_primitives": ["beacon_callback_frequency", "dashboard_runtime_incident_export"],
+          "description": "Runtime Defense beacon callback fires on every tamper detection event AND on periodic heartbeat. Configure the cadence in your protection options (BeaconUrl + heartbeat interval) to satisfy the seven-day-or-faster requirement."
+        },
+        {
+          "id": "11.6.1.c",
+          "title": "Alerts personnel to unauthorized modification.",
+          "jso_evidence_primitives": ["beacon_callback", "siem_forwarder", "dashboard_runtime_incident_export"],
+          "description": "Beacon callback emits structured JSON events to your BeaconUrl. JSO ships first-party SIEM adapters in jso-beacon-slack (Splunk HEC, Elasticsearch, generic HMAC-signed webhook) that forward those events to the on-call rota."
+        }
+      ]
+    }
+  ],
+  "out_of_scope_customer_owns": [
+    {
+      "id": "6.4.3.b.tls",
+      "note": "TLS protection of the JSO HTTP API call is JSO's responsibility (HSTS, TLS 1.3); but TLS protection of the consumer's first-fetch of the protected script from your CDN is the customer's responsibility (Subresource Integrity, CSP)."
+    },
+    {
+      "id": "11.6.1.c.runbook",
+      "note": "JSO delivers the alert; the customer must define the on-call runbook (who pages, what they do)."
+    },
+    {
+      "id": "12.10.x",
+      "note": "Incident response plan is customer-owned. JSO contributes the detection signal only."
+    }
+  ]
+}

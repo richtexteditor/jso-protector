@@ -1,0 +1,39 @@
+{{- /*
+   Toggle between Job and CronJob based on cron.schedule. The pod spec
+   itself is identical in both modes — only the wrapping kind/spec differs.
+*/ -}}
+{{- $podSpec := .Files.Get "templates/_podspec.tpl" -}}
+{{- if .Values.cron.schedule }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "jso-protector.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.cron.schedule | quote }}
+  successfulJobsHistoryLimit: {{ .Values.cron.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.cron.failedJobsHistoryLimit }}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "jso-protector.labels" . | nindent 8 }}
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: {{ .Values.ttlSecondsAfterFinished }}
+      template:
+        {{- include "jso-protector.podTemplate" . | nindent 8 }}
+{{- else }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "jso-protector.labels" . | nindent 4 }}
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: {{ .Values.ttlSecondsAfterFinished }}
+  template:
+    {{- include "jso-protector.podTemplate" . | nindent 4 }}
+{{- end }}

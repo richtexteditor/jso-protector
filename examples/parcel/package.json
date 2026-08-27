@@ -1,0 +1,13 @@
+{
+  "name": "jso-protector-parcel-example",
+  "private": true,
+  "scripts": {
+    "build": "parcel build src/index.html --dist-dir dist",
+    "preflight": "node ./scripts/protect-release.js --plan",
+    "protect": "node ./scripts/protect-release.js",
+    "release": "npm run build && npm run preflight && npm run protect"
+  },
+  "devDependencies": {
+    "jso-protector": "file:../.."
+  }
+}

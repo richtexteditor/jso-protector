@@ -1,0 +1,54 @@
+# Default values for the jso-protector Helm chart.
+#
+# Use:
+#   helm install jso-protect ./helm \
+#       --set repo.url=https://github.com/your-org/your-repo.git \
+#       --set repo.ref=$(git rev-parse HEAD) \
+#       --set credentials.apiKey=$JSO_API_KEY \
+#       --set credentials.apiPassword=$JSO_API_PASSWORD
+
+# Repository to clone in the init container.
+repo:
+  url: "https://github.com/your-org/your-repo.git"
+  ref: "main"
+
+# Where the credentials come from. Two options:
+#   1. Inline (NOT recommended for production): set apiKey / apiPassword
+#      directly here. Helm will create the Secret.
+#   2. existingSecret: name of a pre-created Secret with JSO_API_KEY and
+#      JSO_API_PASSWORD keys. Leave apiKey / apiPassword empty.
+credentials:
+  existingSecret: ""
+  apiKey: ""
+  apiPassword: ""
+
+# jso-protector configuration.
+protect:
+  configPath: "jso.config.json"
+  preset: "balanced"          # standard | balanced | maximum
+  manifestPath: "dist-protected/jso-manifest.json"
+  reportPath: "dist-protected/jso-report.json"
+
+# Container images.
+images:
+  git: "alpine/git:2.43.0"
+  node: "node:22-alpine"
+
+# Resources for the protect container.
+resources:
+  requests:
+    cpu: "500m"
+    memory: "512Mi"
+  limits:
+    cpu: "2000m"
+    memory: "2Gi"
+
+# Optional CronJob mode. When `cron.schedule` is set, the chart deploys a
+# CronJob instead of a one-shot Job. Useful for nightly protection runs.
+cron:
+  schedule: ""                # e.g. "0 2 * * *" for 2am UTC nightly
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+
+# How long the completed Job hangs around before garbage-collected.
+ttlSecondsAfterFinished: 86400

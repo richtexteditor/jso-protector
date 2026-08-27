@@ -1,0 +1,51 @@
+# Buildkite template for jso-protector.
+#
+# Drop this at .buildkite/pipeline.yml in your repo. Expose JSO_API_KEY and
+# JSO_API_PASSWORD via your Buildkite secrets manager or the agent
+# environment hook (recommended over plain pipeline env).
+#
+# Every protection run is tagged with $BUILDKITE_COMMIT via --label and the
+# API report is uploaded as a build artifact for later symbolication.
+
+steps:
+  - label: ":hammer: install"
+    key: install
+    command: npm ci
+
+  - label: ":package: build"
+    key: build
+    depends_on: install
+    command: npm run build
+
+  - label: ":lock: protect"
+    key: protect
+    depends_on: build
+    command: |
+      set -euo pipefail
+      npx jso-protector --config jso.config.json --release-check --json
+      npx jso-protector \
+        --config jso.config.json \
+        --label "$BUILDKITE_COMMIT" \
+        --manifest dist-protected/jso-manifest.json \
+        --report dist-protected/jso-report.json
+        # Optional: migration and supply-chain checks. Copy into a preflight/protect step as needed.
+        # Configure JSO_WATERMARK_KEY as a masked secret; check in ci-key.pub.pem,
+        # store ci-key.priv.pem in a CI file secret. See WireFormat.aspx#watermark.
+        #   npx jso-protector --config jso.config.json --competitor-gap-report --json  # competitor migration gap report
+        #   npx jso-protector --source-map-evidence dist-protected/jso-manifest.json --source-map-evidence-output reports/source-map-evidence.json --json  # source-map absence evidence
+        #   npx jso-protector --script-inventory-audit reports/payment-script-inventory.json --runtime-inventory-snapshot reports/runtime-inventory.json --script-inventory-audit-output reports/payment-script-inventory-audit.json --json  # payment-page script drift gate
+        #   npx jso-protector --payment-page-headers-from-har reports/checkout.har --payment-page-headers-baseline reports/payment-page-headers.baseline.json --payment-page-headers-output reports/payment-page-headers.json --payment-page-url-pattern "checkout|payment|wallet" --json  # payment-page security-header evidence
+        #   --ai-precheck --ai-precheck-fail-on error      # AI compat scan gate
+        #   --estimate                                     # pre-flight quota gate
+        #   --watermark "$COMMIT_SHA"                      # HMAC marker (needs JSO_WATERMARK_KEY env)
+        #   --sign-release ci-key.priv.pem                 # Ed25519 attestation -> .manifest.json.sig
+        #   --local                                        # protect on the runner, no source upload (Windows agents only)
+      npm run smoke --if-present
+    artifact_paths:
+      - "dist-protected/**/*"
+      - "dist-protected/jso-report.json"
+
+# Configure credentials via a Buildkite agent environment hook:
+#   .buildkite/hooks/environment
+#     export JSO_API_KEY="$(buildkite-agent secret get jso_api_key)"
+#     export JSO_API_PASSWORD="$(buildkite-agent secret get jso_api_password)"

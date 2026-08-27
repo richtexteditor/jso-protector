@@ -1,0 +1,5 @@
+node_modules/
+dist/
+dist-protected/
+jso.config.json
+!examples/cli-basic/jso.config.json

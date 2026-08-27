@@ -1,0 +1,62 @@
+{
+  "format": "jso-payment-script-inventory",
+  "version": 1,
+  "sourceFree": true,
+  "generatedUtc": "2026-06-06T12:00:00Z",
+  "scripts": [
+    {
+      "source": "https://js.stripe.com/v3/",
+      "authorized": true,
+      "justification": "Payment tokenization provider used by checkout.",
+      "owner": "Payments",
+      "category": "payment-provider",
+      "integrity": "provider-managed",
+      "lastReviewedUtc": "2026-06-01T00:00:00Z",
+      "checkoutSurface": "hosted-checkout",
+      "frameContext": "psp-iframe",
+      "frameOwner": "Payments",
+      "parentPageHref": "https://shop.example/checkout",
+      "frameHref": "https://checkout.stripe.example/frame",
+      "frameOrigin": "https://checkout.stripe.example",
+      "risk": "medium",
+      "dataAccess": "payment-tokenization",
+      "approvalTicket": "CHG-1001"
+    },
+    {
+      "source": "/assets/checkout.js",
+      "authorized": true,
+      "justification": "First-party checkout orchestration protected by JSO.",
+      "owner": "Payments",
+      "category": "first-party",
+      "integrity": "manifest-sha256",
+      "lastReviewedUtc": "2026-06-01T00:00:00Z",
+      "checkoutSurface": "parent-checkout",
+      "frameContext": "parent-page",
+      "frameOwner": "Web Platform",
+      "parentPageHref": "https://shop.example/checkout",
+      "frameHref": "",
+      "frameOrigin": "",
+      "risk": "low",
+      "dataAccess": "checkout-state",
+      "approvalTicket": "CHG-1002"
+    },
+    {
+      "source": "inline:sha256-ZXhhbXBsZS1oYXNo",
+      "authorized": true,
+      "justification": "Inline bootstrap approved for checkout template.",
+      "owner": "Web Platform",
+      "category": "inline-bootstrap",
+      "integrity": "sha256-ZXhhbXBsZS1oYXNo",
+      "lastReviewedUtc": "2026-06-01T00:00:00Z",
+      "checkoutSurface": "parent-checkout",
+      "frameContext": "parent-page",
+      "frameOwner": "Web Platform",
+      "parentPageHref": "https://shop.example/checkout",
+      "frameHref": "",
+      "frameOrigin": "",
+      "risk": "low",
+      "dataAccess": "page-bootstrap",
+      "approvalTicket": "CHG-1003"
+    }
+  ]
+}
