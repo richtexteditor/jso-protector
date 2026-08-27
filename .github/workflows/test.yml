@@ -31,10 +31,10 @@ jobs:
       - name: Examples and templates
         run: npm run verify:examples
 
-      # TAP hides which subtest failed once GitHub collapses the log, and the
-      # suite runs each file directly rather than through `node --test`. On a
-      # failure, re-run the CLI suite with the spec reporter so the next person
-      # reading this gets names and stacks instead of a count.
+      # On a failure, re-run the CLI suite with the TAP reporter for names and
+      # stacks. Deliberately NOT `node --test`: that runs the file in a child
+      # process which talks to the runner over stdout, and this suite patches
+      # process.stdout while the CLI under test runs. The two cannot coexist.
       - name: Name the failures
         if: failure()
-        run: node --test --test-reporter=spec test/cli.test.js
+        run: node --test-reporter=tap test/cli.test.js
