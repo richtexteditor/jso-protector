@@ -1,5 +1,9 @@
 # jso-protector
 
+[![npm version](https://img.shields.io/npm/v/jso-protector.svg)](https://www.npmjs.com/package/jso-protector)
+[![tests](https://github.com/richtexteditor/jso-protector/actions/workflows/test.yml/badge.svg)](https://github.com/richtexteditor/jso-protector/actions/workflows/test.yml)
+[![node](https://img.shields.io/node/v/jso-protector.svg)](https://www.npmjs.com/package/jso-protector)
+
 Obfuscate and protect JavaScript as part of your build: a dependency-free CLI,
 Node API, and plugins for webpack, Vite, Rollup, esbuild, Next.js, Metro, and
 the rest of the toolchain.
