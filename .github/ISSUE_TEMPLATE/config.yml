@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Account, billing, or plan limits
+    url: https://javascriptobfuscator.com/support.aspx
+    about: Anything about your account, an API key, or what your plan includes.
+  - name: Security report
+    url: https://javascriptobfuscator.com/security.txt
+    about: Report a vulnerability privately. Please do not open a public issue.
+  - name: Documentation
+    url: https://javascriptobfuscator.com/docs/npmcli.aspx
+    about: CLI reference, options, and framework guides.

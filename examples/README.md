@@ -37,7 +37,7 @@ These examples show the common release patterns:
 Install the published package before running examples:
 
 ```bash
-npm install --save-dev jso-protector@0.4.1
+npm install --save-dev jso-protector@0.4.2
 ```
 
 Repository contributors can instead use the existing `file:../..` development

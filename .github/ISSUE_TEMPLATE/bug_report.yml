@@ -1,0 +1,42 @@
+name: Bug report
+description: Something in the CLI, Node API, or a bundler plugin behaves incorrectly.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For anything involving your source code, an API key, or a protected
+        file you cannot share publicly, email support@javascriptobfuscator.com
+        instead. Never paste an API key or password into an issue.
+  - type: input
+    id: version
+    attributes:
+      label: jso-protector version
+      placeholder: "0.4.2"
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node version and OS
+      placeholder: "Node 22.4.0, Windows 11"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected instead
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: The command or config you ran. Redact credentials.
+      render: shell
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `npx jso-protector --doctor`
+      description: It redacts credentials before printing.
+      render: shell

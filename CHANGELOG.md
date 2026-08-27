@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.2 - 2026-08-27
+
+Metadata only. No behaviour changes.
+
+- **The package has a public source repository**:
+  [richtexteditor/jso-protector](https://github.com/richtexteditor/jso-protector).
+  npm now shows Repository and Issues links instead of nothing, which for a
+  security tool is the difference between auditable and "trust us". The
+  repository holds this package and nothing else - the protection engine runs
+  on the hosted API, or on your machine through the bundled `jso-local`
+  executable, and is not part of it.
+- `bugs` points at GitHub issues and support@javascriptobfuscator.com.
+
 ## 0.4.1 - 2026-08-27
 
 Documentation only. No behaviour changes: the CLI, the Node API, the plugins,
