@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.10 - 2026-09-02
+
+Examples README pointed at the wrong version.
+
+- The examples guide told customers to `npm install --save-dev
+  javascriptobfuscator-com@0.4.7` while the package was two releases newer.
+  Because `examples/` ships inside the tarball, published 0.4.8 and 0.4.9
+  carried that stale instruction. It now installs the current version, and the
+  publish gate (`prepublishOnly`) now runs `verify:examples`, so a mismatched
+  README blocks the release instead of shipping and only failing CI afterward.
+
 ## 0.4.9 - 2026-09-01
 
 README only. No behaviour changes.

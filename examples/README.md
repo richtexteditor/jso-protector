@@ -39,7 +39,7 @@ published as `javascriptobfuscator-com`; `jso-protector` is the former name and
 is deprecated but still updated:
 
 ```bash
-npm install --save-dev javascriptobfuscator-com@0.4.9
+npm install --save-dev javascriptobfuscator-com@0.4.10
 ```
 
 Repository contributors can instead use the existing `file:../..` development
