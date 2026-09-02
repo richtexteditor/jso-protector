@@ -29,6 +29,15 @@ const SOURCE_MAP_COMMENT_LINE_PATTERN = /^[ \t]*\/\/[#@]\s*sourceMappingURL=.*(?
 const SOURCE_MAP_COMMENT_BLOCK_PATTERN = /[ \t]*\/\*[#@]\s*sourceMappingURL=[\s\S]*?\*\/[ \t]*(?:\r?\n)?/g;
 
 const PRESET_OPTIONS = {
+  // Free tier. Exactly the transforms that are ungated server-side - anything
+  // else (compression, MoveStrings, DeepObfuscate, renaming, VM ...) requires a
+  // paid plan, so a preset containing them turns an anonymous first run into a
+  // plan-gate error instead of a protected file.
+  free: {
+    IdentityStyle: "v2abcd",
+    EncodeStrings: true,
+    ReplaceNames: true
+  },
   standard: {
     EncodeStrings: true,
     MoveStrings: true,
@@ -880,6 +889,9 @@ function printHelp() {
   process.stdout.write(`jso-protector
 
 Usage:
+  jso-protector app.js                       Writes app-obfuscated.js beside it
+  jso-protector app.js protected/app.js      Input and output as positional paths
+  jso-protector app.js --output protected.js
   jso-protector --config jso.config.json
   jso-protector --input dist --output dist-protected
   jso-protector --stdin --stdout --file-name app.js
@@ -898,6 +910,8 @@ Usage:
   jso-protector --payment-page-headers-from-har reports/checkout.har --payment-page-headers-baseline reports/payment-page-headers.baseline.json --payment-page-headers-output reports/payment-page-headers.json
   jso-protector --script-inventory-audit reports/payment-script-inventory.json --runtime-inventory-snapshot reports/runtime-inventory.json
   jso-protector --init
+  javascriptobfuscator login          Sign in once and save credentials for this machine
+  javascriptobfuscator logout         Remove the saved credentials
 
 Options:
   --config <file>      Config file path. Supports JSON, CommonJS .cjs/.js, and ESM .mjs/.js files.
@@ -2323,7 +2337,22 @@ function mergeConfig(config, args = {}) {
   const webPreset = loadWebPreset(config, args, baseDir);
   const compatibility = translateJavascriptObfuscatorConfigOptions(config);
   const jsConfuserCompatibility = translateJsConfuserConfigOptions(config);
-  const preset = normalizePresetName(args.preset || config.preset || jsConfuserCompatibility.preset || compatibility.preset || (webPreset && webPreset.preset) || "standard");
+  // Credentials saved by `javascriptobfuscator login`. Deliberately LAST in the
+  // chain: an explicit flag, a project config, or a CI environment variable must
+  // always win over a developer's machine-wide login.
+  let _stored;
+  const storedCredentials = () => {
+    if (_stored === undefined) {
+      try { _stored = require("../credentials.js").readStored() || {}; }
+      catch (err) { _stored = {}; }
+    }
+    return _stored;
+  };
+
+  const explicitPreset = args.preset || config.preset || jsConfuserCompatibility.preset || compatibility.preset || (webPreset && webPreset.preset);
+  const noCredentials = !(args.apiKey || config.apiKey || readEnv(["JSO_API_KEY", "JAVASCRIPT_OBFUSCATOR_API_KEY"]) || storedCredentials().apiKey)
+    && !(args.apiPassword || config.apiPassword || readEnv(["JSO_API_PASSWORD", "JAVASCRIPT_OBFUSCATOR_API_PASSWORD"]) || storedCredentials().apiPassword);
+  const preset = normalizePresetName(explicitPreset || (noCredentials ? "free" : "standard"));
   const output = args.output || config.output || getCompatibilityDefaultOutput(args, config, baseDir) || "dist-protected";
   const convenienceOptions = mapConvenienceOptions(config, args);
   const options = {
@@ -2343,8 +2372,8 @@ function mergeConfig(config, args = {}) {
   const merged = {
     mode: args.mode || config.mode || readEnv(["NODE_ENV"]) || null,
     endpoint: args.endpoint || config.endpoint || readEnv(["JSO_ENDPOINT", "JAVASCRIPT_OBFUSCATOR_ENDPOINT"]) || DEFAULT_ENDPOINT,
-    apiKey: resolveEnv(args.apiKey || config.apiKey || readEnv(["JSO_API_KEY", "JAVASCRIPT_OBFUSCATOR_API_KEY"]) || ""),
-    apiPassword: resolveEnv(args.apiPassword || config.apiPassword || readEnv(["JSO_API_PASSWORD", "JAVASCRIPT_OBFUSCATOR_API_PASSWORD"]) || ""),
+    apiKey: resolveEnv(args.apiKey || config.apiKey || readEnv(["JSO_API_KEY", "JAVASCRIPT_OBFUSCATOR_API_KEY"]) || storedCredentials().apiKey || ""),
+    apiPassword: resolveEnv(args.apiPassword || config.apiPassword || readEnv(["JSO_API_PASSWORD", "JAVASCRIPT_OBFUSCATOR_API_PASSWORD"]) || storedCredentials().apiPassword || ""),
     projectName: config.projectName || "jso-protector",
     preset,
     input: args.input || config.input || "dist",
@@ -2448,7 +2477,7 @@ function loadWebPreset(config, args, baseDir) {
 function normalizePresetName(value) {
   const name = String(value || "standard").toLowerCase();
   if (!Object.prototype.hasOwnProperty.call(PRESET_OPTIONS, name)) {
-    throw new Error(`Unknown preset "${value}". Use standard, balanced, or maximum.`);
+    throw new Error(`Unknown preset "${value}". Use free, standard, balanced, or maximum.`);
   }
   return name;
 }
@@ -4619,6 +4648,13 @@ function formatApiFailure(details = {}, secrets = []) {
 }
 
 function apiFailureHint(details = {}) {
+  // A 429 already carries a complete, actionable message from the server
+  // (which ceiling was hit, how long to wait, and that signing in raises it).
+  // Appending the billing hint on top of it was actively misleading: the
+  // word "limit" in a rate-limit message matched the paid-plan regexp below,
+  // so a keyless first run was told to "check account status, plan limits,
+  // credits, or subscription state" for a quota no account would fix.
+  if (details.status === 429) return "";
   const text = `${details.status || ""} ${details.type || ""} ${details.message || ""}`.toLowerCase();
   if (/payment|paid|plan|subscription|credit|quota|limit|expired|billing|over[- ]?limit/.test(text)) {
     return "Paid API access is enforced by the hosted API; check account status, plan limits, credits, or subscription state.";
@@ -4666,9 +4702,18 @@ function normalizeName(name) {
   return String(name || "").replace(/\\/g, "/");
 }
 
+// With NO credentials at all the request is sent anonymously: the service runs
+// it on the free tier (20 files / 200 KB, no VM, rate limited per IP) so a first
+// command produces real protected output instead of an error. Half-configured is
+// still an error, because that is a mistake rather than a choice.
+function isAnonymousRun(config) {
+  return !config.apiKey && !config.apiPassword;
+}
+
 function assertReady(config) {
-  if (!config.apiKey) throw new Error("Missing API key. Set JSO_API_KEY, JAVASCRIPT_OBFUSCATOR_API_KEY, or apiKey in config.");
-  if (!config.apiPassword) throw new Error("Missing API password. Set JSO_API_PASSWORD, JAVASCRIPT_OBFUSCATOR_API_PASSWORD, or apiPassword in config.");
+  if (isAnonymousRun(config)) return;
+  if (!config.apiKey) throw new Error("Missing API key. Run `javascriptobfuscator login` to sign in and save credentials, or create a key at https://javascriptobfuscator.com/dashboard/APIKeys.aspx?src=cli-nokey and set JSO_API_KEY.");
+  if (!config.apiPassword) throw new Error("Missing API password. Run `javascriptobfuscator login` to sign in and save credentials, or copy it from https://javascriptobfuscator.com/dashboard/APIKeys.aspx?src=cli-nopwd and set JSO_API_PASSWORD.");
 }
 
 function sha256(value) {
@@ -4849,8 +4894,8 @@ async function runDoctor(config, args = {}) {
   const checks = [];
   const limitations = collectCompetitorLimitations(args.rawConfig && typeof args.rawConfig === "object" ? args.rawConfig : config, args);
   addDoctorCheck(checks, "endpoint", isValidUrl(config.endpoint), `Endpoint: ${config.endpoint}`, "Endpoint must be a valid URL.");
-  addDoctorCheck(checks, "apiKey", !!config.apiKey, "API key is present.", "Missing API key. Set JSO_API_KEY, JAVASCRIPT_OBFUSCATOR_API_KEY, or apiKey in config.");
-  addDoctorCheck(checks, "apiPassword", !!config.apiPassword, "API password is present.", "Missing API password. Set JSO_API_PASSWORD, JAVASCRIPT_OBFUSCATOR_API_PASSWORD, or apiPassword in config.");
+  addDoctorCheck(checks, "apiKey", !!config.apiKey, "API key is present.", "Missing API key. Run `javascriptobfuscator login` to sign in and save credentials, or create a key at https://javascriptobfuscator.com/dashboard/APIKeys.aspx?src=cli-nokey and set JSO_API_KEY.");
+  addDoctorCheck(checks, "apiPassword", !!config.apiPassword, "API password is present.", "Missing API password. Run `javascriptobfuscator login` to sign in and save credentials, or copy it from https://javascriptobfuscator.com/dashboard/APIKeys.aspx?src=cli-nopwd and set JSO_API_PASSWORD.");
   addDoctorCheck(checks, "preset", true, `Preset: ${config.preset}`);
   addDoctorCheck(checks, "options", Object.keys(config.options || {}).length > 0, `${Object.keys(config.options || {}).length} option(s) enabled.`, "No protection options are enabled.");
 
@@ -7119,8 +7164,8 @@ function validateProtectionConfig(config, args = {}) {
   }
 
   addValidationCheck(checks, "endpoint", isValidUrl(resolved.endpoint) ? "ok" : "error", isValidUrl(resolved.endpoint) ? `Endpoint: ${resolved.endpoint}` : "Endpoint must be a valid HTTP or HTTPS URL.");
-  addValidationCheck(checks, "apiKey", resolved.apiKey ? "ok" : "error", resolved.apiKey ? "API key is present." : "Missing API key. Set JSO_API_KEY, JAVASCRIPT_OBFUSCATOR_API_KEY, or apiKey in config.");
-  addValidationCheck(checks, "apiPassword", resolved.apiPassword ? "ok" : "error", resolved.apiPassword ? "API password is present." : "Missing API password. Set JSO_API_PASSWORD, JAVASCRIPT_OBFUSCATOR_API_PASSWORD, or apiPassword in config.");
+  addValidationCheck(checks, "apiKey", resolved.apiKey ? "ok" : "error", resolved.apiKey ? "API key is present." : "Missing API key. Run `javascriptobfuscator login` to sign in and save credentials, or create a key at https://javascriptobfuscator.com/dashboard/APIKeys.aspx?src=cli-nokey and set JSO_API_KEY.");
+  addValidationCheck(checks, "apiPassword", resolved.apiPassword ? "ok" : "error", resolved.apiPassword ? "API password is present." : "Missing API password. Run `javascriptobfuscator login` to sign in and save credentials, or copy it from https://javascriptobfuscator.com/dashboard/APIKeys.aspx?src=cli-nopwd and set JSO_API_PASSWORD.");
   addCredentialStorageValidation(checks, config, args);
   addValidationCheck(checks, "preset", "ok", `Preset: ${resolved.preset}`);
   addValidationCheck(checks, "paths", resolved.input && resolved.output ? "ok" : "error", resolved.input && resolved.output ? "Input and output paths are configured." : "Input and output paths must be configured.");
@@ -11814,6 +11859,19 @@ async function main(argv = process.argv.slice(2)) {
   // `jso ai <subcommand>` -- intercept before parseArgs so the AI
   // surface gets its own flag set without bloating the protect-side
   // parser. See ai-cli.js for the subcommand definitions.
+  // `login` / `logout` -- a user-level credential store. Intercepted here for
+  // the same reason as `ai`: it needs no protect-side flags. See credentials.js.
+  if (argv.length > 0 && (argv[0] === "login" || argv[0] === "logout")) {
+    const creds = require("../credentials.js");
+    const code = argv[0] === "login" ? await creds.login(argv.slice(1)) : creds.logout();
+    if (code !== 0) {
+      const err = new Error("jso " + argv[0] + " exited with code " + code);
+      err.exitCode = code;
+      throw err;
+    }
+    return;
+  }
+
   if (argv.length > 0 && argv[0] === "ai") {
     const aiCli = require("../ai-cli.js");
     const code = await aiCli.main(argv.slice(1));
@@ -12263,6 +12321,13 @@ async function main(argv = process.argv.slice(2)) {
   }
 
   assertReady(config);
+  // Say plainly that this run is unauthenticated. Someone whose credentials
+  // silently stopped resolving must not think they are on their paid plan.
+  if (isAnonymousRun(config) && !args.json) {
+    process.stderr.write(
+      "No credentials found - running on the free tier (up to 20 files, 200 KB per request, no VM protection)." + "\n" +
+      "Run `javascriptobfuscator login` to use your plan." + "\n\n");
+  }
   if (!files.length) {
     throw new Error("No matching input files found.");
   }

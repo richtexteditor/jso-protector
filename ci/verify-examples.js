@@ -41,7 +41,10 @@ for (const file of jsonFiles) {
 }
 
 const readme = fs.readFileSync(path.join(examplesRoot, "README.md"), "utf8");
-if (!readme.includes(`npm install --save-dev jso-protector@${expectedVersion}`)) fail("examples README does not install the current public version");
+// The package is published as `javascriptobfuscator-com` since 2026-08-30;
+// `jso-protector` is the deprecated former name. Assert the CANONICAL name so
+// this gate cannot go on enforcing a name we no longer tell customers to install.
+if (!readme.includes(`npm install --save-dev javascriptobfuscator-com@${expectedVersion}`)) fail("examples README does not install the current public version under the canonical package name");
 if (readme.includes("intentionally not published to npm")) fail("examples README still says the public package is unpublished");
 
 const reactNativeReadme = fs.readFileSync(path.join(examplesRoot, "react-native", "README.md"), "utf8");

@@ -1,5 +1,92 @@
 # Changelog
 
+## 0.4.8 - 2026-09-01
+
+The rate-limit message a first run actually sees.
+
+- A keyless run that tripped the free-tier cap used to print
+  `API returned non-JSON response (429): The custom error module does not
+  recognize this error.` That sentence was IIS's, not ours: the server writes a
+  proper JSON body, and IIS's custom-error module was discarding it before it
+  left the machine. Fixed server-side; the message now says which of the two
+  ceilings was hit and how to raise it.
+- The CLI no longer appends its paid-plan hint to a 429. The word "limit" in a
+  rate-limit message matched the billing regexp, so someone with no account was
+  being told to go check their subscription state.
+- `--help` now shows the positional form. `jso-protector app.js` has always
+  worked and writes `app-obfuscated.js` beside the input - the same default the
+  competitor's CLI uses - but nothing in the help output said so, so anyone
+  arriving with that muscle memory had no way to find it.
+
+## 0.4.7 - 2026-08-31
+
+Attribution only. No behaviour changes.
+
+- The dashboard links the CLI opens now carry a source tag: `src=cli-login`
+  from `login`, and `src=cli-nokey` / `src=cli-nopwd` from the missing-credential
+  errors. A sign-up that starts at the CLI was previously indistinguishable from
+  a web sign-up, which made the free first run impossible to measure.
+- Held back until the site could actually read the tag. It was being lost twice
+  on the way: the dashboard bounced signed-out visitors to sign-in without the
+  query string, and the sign-in page then hardcoded its own tag over whatever
+  arrived. Both are fixed and live, verified end to end before this release.
+
+## 0.4.6 - 2026-08-31
+
+Documentation only. No behaviour changes.
+
+- **The README said you needed an API key to use this package.** Since 0.4.5
+  that is false for a first run, and it was the first thing anyone read on
+  npmjs.com - so the page was arguing against the feature the release shipped.
+  The quickstart now says no account is needed, "What you need" answers
+  "nothing, to start", and the payment section describes the free tier and where
+  it ends instead of claiming the package unlocks nothing on its own.
+- The quickstart installs `javascriptobfuscator-com` and calls
+  `javascriptobfuscator`, the current names.
+
+## 0.4.5 - 2026-08-31
+
+- **The first command now works without an account.** With no credentials at
+  all the CLI sends the request anonymously and the service runs it on the free
+  tier - up to 20 files and 200 KB per request, no VM protection, rate limited
+  per IP. You get real protected output instead of an error, and the run says
+  so on stderr. `javascriptobfuscator login` switches to your plan.
+- Half-configured credentials are still an error. Only *no* credentials means
+  anonymous, so a key that stopped resolving cannot silently downgrade a paid
+  build to the free tier.
+
+## 0.4.4 - 2026-08-31
+
+- **`javascriptobfuscator login` saves your credentials once, for every project
+  on the machine.** Getting a first protected build used to take about seven
+  steps: install, hit the error, find the site, register, verify email, locate
+  the dashboard, copy two values, work out two platform-specific environment
+  variable names, set them, and run again - then set them again in the next
+  shell. `login` opens the dashboard, takes the two values (the password is not
+  echoed), and stores them in `~/.jso-protector/credentials.json`.
+- `javascriptobfuscator logout` removes them.
+- Stored credentials are resolved **last**, after an explicit flag, a project
+  config and the environment variables, so no existing CI setup changes
+  behaviour.
+- The missing-credential errors now name `login` as the fastest fix.
+- The store is written 0600. That is real protection on POSIX; Windows does not
+  honour the mode, so there it is only as protected as your user profile - the
+  same position as `~/.npmrc`.
+
+## 0.4.3 - 2026-08-30
+
+Error messages only. No behaviour changes.
+
+- **The "Missing API key" error now says where to get one.** It previously named
+  three places to *put* a key and no place to *obtain* one, which left a first-time
+  user with a dead end: measured against `javascript-obfuscator`, their first
+  command emits working protected output while ours printed this error. The
+  message now links the dashboard page that issues a free key, and the npm setup
+  guide. Same for "Missing API password", which is shown beside the key.
+- Applied at all six sites - the protect path, `--doctor`, and config validation -
+  so the guidance is the same wherever you hit it.
+- Also published under the package's new name, `javascriptobfuscator-com`.
+
 ## 0.4.2 - 2026-08-27
 
 Metadata only. No behaviour changes.

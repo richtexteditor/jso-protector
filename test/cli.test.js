@@ -1471,7 +1471,10 @@ test("listPresets and listOptions expose documented CLI references", () => {
   const options = cli.listOptions();
   const migrationMap = cli.listJavascriptObfuscatorMigrationMap();
 
-  assert.deepEqual(presets.map((preset) => preset.name), ["standard", "balanced", "maximum"]);
+  assert.deepEqual(presets.map((preset) => preset.name), ["free", "standard", "balanced", "maximum"]);
+  // `free` is the only preset a credential-less run can actually execute: every
+  // other transform is plan-gated server-side.
+  assert.deepEqual(Object.keys(presets.find((preset) => preset.name === "free").options).sort(), ["EncodeStrings", "IdentityStyle", "ReplaceNames"]);
   assert.equal(presets.find((preset) => preset.name === "balanced").options.DeepObfuscate, true);
   assert.equal(options.some((option) => option.name === "LockDomain" && option.category === "locks"), true);
   assert.equal(options.some((option) => option.name === "LockBrowser" && option.category === "locks"), true);
@@ -3519,7 +3522,7 @@ test("CLI prints preset and option references as JSON", async () => {
   const options = await runCli(["--list-options", "--json"], "");
   const migrationMap = await runCli(["--list-migration-map", "--json"], "");
 
-  assert.equal(JSON.parse(presets.stdout).presets.length, 3);
+  assert.equal(JSON.parse(presets.stdout).presets.length, 4);
   assert.equal(JSON.parse(options.stdout).options.some((option) => option.name === "VariableExclusion"), true);
   const parsedMigrationMap = JSON.parse(migrationMap.stdout);
   assert.equal(parsedMigrationMap.summary.totalKnown, parsedMigrationMap.mappings.length + parsedMigrationMap.review.length);

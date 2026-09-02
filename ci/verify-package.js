@@ -24,6 +24,7 @@ const REQUIRED_PACKED_FILES = [
   "bun.js",
   "browserify.d.ts",
   "browserify.js",
+  "credentials.js",
   "ci/azure-pipelines.yml",
   "ci/github-actions.yml",
   "ci/gitlab-ci.yml",

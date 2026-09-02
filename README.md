@@ -9,20 +9,29 @@ Node API, and plugins for webpack, Vite, Rollup, esbuild, Next.js, Metro, and
 the rest of the toolchain.
 
 ```bash
-npm install --save-dev jso-protector
-npx jso-protector --input dist --output dist-protected
+npm install --save-dev javascriptobfuscator-com
+npx javascriptobfuscator --input dist --output dist-protected
 ```
+
+**No account needed to try it.** With no credentials configured the run uses the
+free tier - up to 20 files and 200 KB per request, rate limited, no VM
+protection - and tells you so. `npx javascriptobfuscator login` switches to your
+plan when you need more.
 
 That protects every JavaScript file in `dist/` and writes the result to
 `dist-protected/`. Nothing else in your build has to change.
 
 ## What you need
 
-An API key and password from your [javascriptobfuscator.com](https://javascriptobfuscator.com/)
-dashboard, passed as `--api-key` / `--api-password` or read from the
-`JSO_API_KEY` and `JSO_API_PASSWORD` environment variables. Run
-`npx jso-protector --doctor` to check credentials, paths, and file matching
-before you wire it into CI.
+Nothing, to start. A run with no credentials goes to the free tier.
+
+Beyond it - more than 20 files or 200 KB in one request, compression, renaming,
+control-flow flattening, VM protection - you need a key and password from your
+[javascriptobfuscator.com](https://javascriptobfuscator.com/) dashboard. Run
+`npx javascriptobfuscator login` to sign in once and store them, or pass
+`--api-key` / `--api-password`, or set `JSO_API_KEY` and `JSO_API_PASSWORD`.
+Run `npx javascriptobfuscator --doctor` to check credentials, paths, and file
+matching before you wire it into CI.
 
 ## Already using another obfuscator?
 
@@ -318,7 +327,9 @@ internal remediation.
 
 ## Payment and API Access
 
-`jso-protector` is a localhost developer client for the paid JavaScript Obfuscator service: it drives the hosted API by default, or the bundled `jso-local` protector with `--local`. The npm package does not unlock protection by itself and does not contain payment logic.
+This package is a client. It drives the hosted API by default, or the bundled `jso-local` protector with `--local`. Protection itself, billing and every plan limit live on the server, never in this package.
+
+A request with no credentials is served on the **free tier**: up to 20 files and 200 KB per request, rate limited per IP, no VM protection. Everything above that is a paid plan, enforced server-side.
 
 Payment and account enforcement stay on `javascriptobfuscator.com`:
 
@@ -336,7 +347,25 @@ Keep billing, entitlement checks, plan limits, and API secrets on the server sid
 
 If the hosted API rejects a request, the CLI reports dashboard credential hints for authentication failures and account/plan/credit guidance for entitlement failures. API keys and passwords are redacted from error messages before they reach terminal logs.
 
-Set credentials from the dashboard:
+### Sign in once
+
+```bash
+npx javascriptobfuscator login
+```
+
+This opens the dashboard, takes the API Key and API Password (the password is
+not echoed), and stores them in `~/.jso-protector/credentials.json` for every
+project on the machine. `npx javascriptobfuscator logout` removes them.
+
+The store is written `0600`. That is real protection on POSIX; Windows does not
+honour the mode, so there the file is only as protected as your user profile
+directory - the same position as `~/.npmrc`.
+
+### Or set them per shell
+
+Stored credentials are read **last**, so an explicit flag, a project config, or
+these environment variables always win - a CI setup is unaffected by whatever a
+developer has logged in with locally.
 
 ```bash
 set JSO_API_KEY=base64-api-key-from-dashboard

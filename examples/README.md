@@ -34,10 +34,12 @@ These examples show the common release patterns:
   `matchesBaseline` uses `match`, `mismatch`, or `missing` so reviewers can
   see whether a checkout page or frame changed from the approved baseline.
 
-Install the published package before running examples:
+Install the published package before running examples. The package is now
+published as `javascriptobfuscator-com`; `jso-protector` is the former name and
+is deprecated but still updated:
 
 ```bash
-npm install --save-dev jso-protector@0.4.2
+npm install --save-dev javascriptobfuscator-com@0.4.7
 ```
 
 Repository contributors can instead use the existing `file:../..` development
