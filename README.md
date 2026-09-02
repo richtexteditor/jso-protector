@@ -61,6 +61,20 @@ and missing parity against common JavaScript obfuscators.
 - **Different profiles in one build.** `namedSets` maps file globs to their own
   preset and options, so a checkout flow can ship maximum protection while
   marketing pages stay on standard.
+- **Nothing else comes with it.** Zero dependencies. Measured against
+  `javascript-obfuscator` 5.6.0 on a cold install, same machine, same day
+  (2026-09-01):
+
+  | | jso-protector | javascript-obfuscator |
+  |---|---|---|
+  | dependencies | **0** | 23 |
+  | `node_modules` directories | **3** | 120 |
+  | cold install | **1s** | 9s |
+  | on disk | **2 MB** | 56 MB |
+
+  Re-run it yourself; the numbers are the point, not the adjective. A tool you
+  add to a build to reduce risk should not widen the dependency surface it runs
+  in.
 
 Full option reference: [Docs / npm CLI](https://javascriptobfuscator.com/docs/npmcli.aspx)
 and [Docs / npm options](https://javascriptobfuscator.com/docs/npmoptions.aspx).
@@ -132,367 +146,6 @@ the `jso-github-action` package) wraps the saved-report workflow too: `report-pa
 and `ai-resistance-evidence-report` outputs let CI upload source-free reviewer
 artifacts beside the protected build, while `build-id` and
 `polymorphism-fingerprint` remain available for runtime crash correlation.
-
-## Payment-page evidence reports
-
-For checkout, wallet, subscription, activation, and license pages, pair the
-signed release manifest with a payment-page script inventory and Dashboard
-Monitoring incident history. Export runtime incidents CSV or JSON from the
-dashboard, keep a CSV or JSON list of payment-page scripts with authorization
-and written justification, and attach a payment-page security-header snapshot
-when reviewers ask for CSP/header change evidence. Include these source-free
-attachments in the PCI DSS v4 report. Start from
-`examples/payment-page-script-inventory.json` and
-`examples/payment-page-security-headers.json` when you need the expected JSON
-field names, or generate a review starter from a saved
-`third-party-inventory` runtime snapshot:
-
-```bash
-npx jso-protector \
-  --script-inventory-from-snapshot reports/runtime-inventory.json \
-  --script-inventory-output reports/payment-script-inventory.json
-```
-
-If your checkout evidence starts as a browser or synthetic-monitor HAR export,
-convert the document and iframe responses into the same source-free
-security-header snapshot. The converter keeps CSP, HSTS, frame/referrer policy,
-reporting endpoint, and related security headers, drops raw cookies and other
-non-security headers, and stores a SHA-256 over each canonical selected-header
-snapshot. Keep the last approved snapshot in your evidence repository and pass
-it as `--payment-page-headers-baseline` when you want the new HAR export to
-mark each checkout page or frame as `match`, `mismatch`, or `missing` for
-security-header change review. The generated snapshot also includes a
-source-free security-header Review Assistant Packet for BYO AI or internal
-reviewers. It focuses the review on baseline drift, CSP/reporting, HSTS, and
-frame-policy owner actions while reminding teams not to include
-raw response headers, cookies, source code, payment data, customer data, provider keys, or
-secrets.
-
-```bash
-npx jso-protector \
-  --payment-page-headers-from-har reports/checkout.har \
-  --payment-page-headers-baseline reports/payment-page-headers.baseline.json \
-  --payment-page-headers-output reports/payment-page-headers.json \
-  --payment-page-url-pattern "checkout|payment|wallet"
-```
-
-Review the generated script inventory file before audit use. Set `authorized`, add written
-`justification`, assign `owner`, and fill `lastReviewedUtc` for every approved
-payment-page script. Add `risk`, `dataAccess`, and `approvalTicket` when your
-checkout review process tracks risk-based decisions or change approvals. Add
-`checkoutSurface`, `frameContext`, `frameOwner`, `parentPageHref`, `frameHref`,
-and `frameOrigin` when your payment flow has a parent page, hosted checkout
-page, PSP iframe, or embedded payment frame that reviewers need to distinguish.
-The
-audit packet fails only on blocking script drift or required metadata gaps; it
-also calls out missing optional review context so checkout owners can improve
-QSA handoff quality without breaking an otherwise clean release. Before handing
-the packet to reviewers, reconcile the approved inventory against a fresh
-runtime snapshot:
-
-```bash
-npx jso-protector \
-  --script-inventory-audit reports/payment-script-inventory.json \
-  --runtime-inventory-snapshot reports/runtime-inventory.json \
-  --script-inventory-audit-output reports/payment-script-inventory-audit.json \
-  --json
-```
-
-The audit is local and source-free. It reports unknown observed scripts,
-scripts observed while marked unauthorized, approved scripts missing from the
-page, hash mismatches, scripts injected after page load, runtime violation
-reasons, and missing inventory metadata. Omit `--json` or use a `.md` output
-path when a standalone human-readable packet is preferred.
-
-In GitHub Actions, the bundled JSO action exposes the same audit,
-security-header snapshot, and PCI DSS v4 reviewer packet as opt-in workflow
-steps: set
-`payment-script-inventory`, `runtime-inventory-snapshot`, and optionally
-`script-inventory-audit-report` to fail the release job on payment-page script
-drift; set `payment-page-har`, optionally `payment-page-url-pattern`, and
-optionally `payment-page-headers-baseline` and `payment-page-headers-report` to
-convert a checkout HAR into the same source-free header evidence artifact and
-mark baseline matches, mismatches, or missing pages; set `pci-dss-v4-evidence` with
-`pci-dss-v4-report` and `pci-dss-v4-json-report` to assemble the Markdown and
-JSON PCI evidence report from the protected manifest plus those attachments.
-Use `manifest`, `sign-release-key`, `watermark`, and `watermark-key` when this
-report needs to pass rather than document incomplete evidence. The action adds
-a step summary and workflow annotations for the first audit, header, or PCI
-findings so reviewers can see drift directly in the CI run.
-
-```bash
-npx jso-protector compliance pci-dss-v4 \
-  --manifest dist-protected/jso-manifest.json.sig \
-  --root dist-protected \
-  --watermark-key "$JSO_WATERMARK_KEY" \
-  --beacon-url "https://javascriptobfuscator.com/v1/runtime/beacon.ashx" \
-  --siem splunk-hec \
-  --script-inventory reports/payment-script-inventory.json \
-  --script-inventory-audit reports/payment-script-inventory-audit.json \
-  --payment-page-headers reports/payment-page-headers.json \
-  --runtime-incidents reports/runtime-incidents.json \
-  --organization "Example Corp" \
-  --output reports/pci-dss-v4.md
-```
-
-The report hashes and summarizes these attachments, then adds a source-free PCI
-DSS Review Assistant for BYO AI or internal reviewers. The assistant turns
-evidence gaps, signed-release proof, script authorization, observed script
-drift, header change evidence, runtime incident routing, and QSA handoff
-boundaries into checkout-owner actions without sharing source code, protected
-output, raw script rows, raw response headers, raw incident payloads,
-payment-card data, provider keys, customer data, or secrets. Script inventory evidence is
-summarized by authorization, justification, owner, domain, review range, and
-integrity-reference coverage. When the inventory includes `risk`, `dataAccess`,
-`approvalTicket`, `checkoutSurface`, `frameContext`, and `frameOwner`, the
-report summarizes those fields, including iframe-scoped script counts, without
-embedding every script row. Security-header evidence is summarized by CSP,
-`script-src`, `frame-src`, reporting endpoint, HSTS, referrer-policy,
-baseline-hash match/mismatch/missing state, checkout surface, frame context, monitor, alert
-route, domain, observed range, and SHA-256 without embedding every raw page
-row. Runtime incident evidence is summarized by status, severity,
-open/reviewing count, per-incident next owner and due state, repeated-signal correlation, date range, Build IDs, and SHA-256. The Markdown does not
-embed every incident URL, user agent, script row, or raw header snapshot, so it
-can be handed to reviewers while the CSV or JSON exports remain the source-free
-attachments. The report supports QSA-led assessment; it is not itself a Report
-on Compliance.
-When a Dashboard Monitoring JSON export includes filters such as
-`runtime_status=active`, `runtime_severity=high-critical`, or
-`runtime_build=checkout-2026-06-07`, the report keeps that filter context in
-the runtime incident evidence table. The Dashboard JSON export also carries a
-source-free summary block with status/severity counts, active high-risk count,
-payload-hash coverage, BuildIDs, event/received date ranges, per-incident action-plan owner/due/status metadata, repeated fingerprint/reason groups, a routing
-recommendation, an alert routing playbook, and a response checklist before the incident rows. Dashboard
-Monitoring shows the same routing recommendation on the current filtered view
-before export, including response target, next status action, and playbook
-lanes for security response, customer-owned alerting, support handoff, and
-reviewer packets. The JSON export also includes source-free dashboard action
-metadata, such as the filtered "Move open in view to Reviewing" status action,
-plus per-row action plans that name the next owner, evidence packet, response due state, and status move, so support automation can tell account owners what to do next without scraping
-dashboard HTML. The PCI
-evidence report preserves those Dashboard JSON fields so support and reviewers
-can see whether the packet belongs in runtime triage, security response, or
-archive evidence. The response checklist and alert routing playbook carry
-owners, response targets, scope confirmation, downstream routing, and
-safe-sharing boundaries for reviewer
-or on-call handoff. A single-row Dashboard Monitoring Evidence JSON packet can also be passed to
-`--runtime-incidents` when the review is about one specific event.
-
-For non-PCI runtime reviews, generate a standalone source-free handoff packet
-directly from the Dashboard Monitoring export:
-
-```bash
-npx jso-protector \
-  --runtime-incident-evidence reports/runtime-incidents.json \
-  --runtime-incident-evidence-output reports/runtime-incident-evidence.md
-```
-
-The packet summarizes status and severity counts, active high/critical count,
-BuildIDs, per-incident action plans, repeated-signal correlation, routing recommendation, dashboard actions,
-response window, response checklist, alert routing playbook, export SHA-256, and safe-sharing boundaries.
-It also includes a source-free Runtime Incident Review Assistant for BYO AI or
-internal reviewers, with prompts for urgent response, repeated-signal
-correlation, overdue incident owners, dashboard status actions, response-window decisions, and
-alert-routing handoff without sharing source code, raw incident payloads,
-collector tokens, customer data, or secrets.
-It exits nonzero when active high/critical incidents are present so CI can
-block reviewer handoff until the incident is acknowledged and routed.
-
-In GitHub Actions, the bundled JSO action exposes the same gate as
-`runtime-incident-export` plus `runtime-incident-evidence-report`. The action
-writes a source-free JSON artifact, adds a step summary and annotations, and
-fails the job when the exported packet contains active high/critical runtime
-incidents that have not started response.
-
-## Deployment Hygiene Evidence
-
-When `tools/Build-UpdatedArchives.ps1 -ReportPath _temp/archive-hygiene.json`
-creates an updated-files archive hygiene report, turn it into a source-free
-reviewer packet before sharing the zip:
-
-```bash
-npx jso-protector \
-  --deployment-hygiene-evidence _temp/archive-hygiene.json \
-  --deployment-hygiene-output reports/deployment-hygiene.md
-```
-
-The packet summarizes archive names, entry counts, byte sizes, missing required
-entries, blocked entries, blocked category booleans, the exclusion policy,
-operator checklist, rotation triggers, hygiene-report SHA-256, and a Deployment Hygiene Review Assistant for BYO AI or internal reviewers. It does not include
-`Web.config` contents, raw secrets, provider keys, webhook signing secrets,
-database strings, host-specific deployment transforms, customer data, or source
-code. It exits nonzero when the archive builder reported blocked deployment
-files or missing required entries, while still writing the failed packet for
-internal remediation.
-
-## Payment and API Access
-
-This package is a client. It drives the hosted API by default, or the bundled `jso-local` protector with `--local`. Protection itself, billing and every plan limit live on the server, never in this package.
-
-A request with no credentials is served on the **free tier**: up to 20 files and 200 KB per request, rate limited per IP, no VM protection. Everything above that is a paid plan, enforced server-side.
-
-Payment and account enforcement stay on `javascriptobfuscator.com`:
-
-1. The user buys a plan or credits on the JavaScript Obfuscator website.
-2. The dashboard provides `JSO_API_KEY` and `JSO_API_PASSWORD`.
-3. By default the local npm CLI sends selected JavaScript to the configured HTTPS API endpoint.
-4. The hosted API validates the account, plan, limits, and credentials before returning protected code.
-
-With `--local` the source body stays on the build machine and step 3 does not
-happen, but entitlement is still enforced server-side: the run makes a
-source-free plan/option check before protecting. Either way, billing and plan
-limits live on the server, never in this package.
-
-Keep billing, entitlement checks, plan limits, and API secrets on the server side. The local npm package should only read credentials from environment variables or config and call the API.
-
-If the hosted API rejects a request, the CLI reports dashboard credential hints for authentication failures and account/plan/credit guidance for entitlement failures. API keys and passwords are redacted from error messages before they reach terminal logs.
-
-### Sign in once
-
-```bash
-npx javascriptobfuscator login
-```
-
-This opens the dashboard, takes the API Key and API Password (the password is
-not echoed), and stores them in `~/.jso-protector/credentials.json` for every
-project on the machine. `npx javascriptobfuscator logout` removes them.
-
-The store is written `0600`. That is real protection on POSIX; Windows does not
-honour the mode, so there the file is only as protected as your user profile
-directory - the same position as `~/.npmrc`.
-
-### Or set them per shell
-
-Stored credentials are read **last**, so an explicit flag, a project config, or
-these environment variables always win - a CI setup is unaffected by whatever a
-developer has logged in with locally.
-
-```bash
-set JSO_API_KEY=base64-api-key-from-dashboard
-set JSO_API_PASSWORD=base64-api-password-from-dashboard
-```
-
-For macOS/Linux shells:
-
-```bash
-export JSO_API_KEY=base64-api-key-from-dashboard
-export JSO_API_PASSWORD=base64-api-password-from-dashboard
-```
-
-Protect generated build output:
-
-```bash
-npx jso-protector --config jso.config.json
-```
-
-### Runtime recovery and enterprise governance foundations
-
-Browser-targeted API options now support bounded local recovery with
-`SelfDefending`, `SelfHealing`, and `SelfHealingMaxAttempts`. A successful
-repair emits a `self-healed-*` runtime event; when repair is unavailable or
-exhausted, `RuntimeDefenseAction` can use `throw`, `blank`, `redirect`,
-`reload`, `callback`, or `degrade`. Local recovery handles mutation after the
-wrapper starts and does not claim to repair a bundle modified before startup.
-
-Release automation can import `jso-protector/governance` for shared RBAC,
-scoped-token descriptors, SHA-256 hash-chained audit events, validated
-OIDC/SAML trust configuration, an organization directory, and a SCIM 2.0
-`/Users` service core with bearer authentication, filtering, role updates, and
-deactivation. Deployments still need to mount the service behind HTTPS and
-persist directory changes in their account store.
-
-`jso-protector/runtime/third-party-inventory` supports
-`enforcementMode: "block"` for synchronous origin and late-injection decisions
-on dynamically-created scripts. `jso-protector/runtime/managed-integrity` adds
-versioned monitor/block policies, inventory evaluation, deduplicated incidents,
-assignment/status transitions, and JSON export for hosted or on-prem operations.
-`jso-protector/runtime/data-exfiltration-guard` adds opt-in monitor/block controls
-for protected-field data sent through fetch, XHR, sendBeacon, WebSocket, or
-programmatic form submission. Allow approved destinations explicitly and begin
-in monitor mode. Evidence contains field names and counts, never captured values
-or request bodies; encoded/encrypted bodies and script attribution remain stated
-browser-runtime limitations.
-
-Compare a migrated config against common JavaScript obfuscator capabilities:
-
-```bash
-npx jso-protector --config jso.config.json --competitor-gap-report
-npx jso-protector --config jso.config.json --competitor-gap-report --json
-npx jso-protector --config jso.config.json --migration-review \
-  --migration-review-output reports/migration-review.md
-npx jso-protector --config jso.config.json --identifier-cache-review \
-  --identifier-cache-review-output reports/identifier-cache-review.md
-npx jso-protector --config jso.config.json --runtime-defense-review \
-  --runtime-defense-review-output reports/runtime-defense-review.md
-```
-
-The gap report groups parity into covered, partial, and gap areas across common
-competitor surfaces such as control-flow flattening, string hiding, domain/date
-locks, runtime monitoring, hosted dashboard intake, countermeasures, source
-maps, and release forensics. It names Obfuscator.io, javascript-obfuscator,
-JS-Confuser, Jscrambler, and JSDefender so migration reviews can separate exact
-matches from features that need manual validation. Runtime-defense parity is
-reported as partial: route `RuntimeDefenseBeaconUrl` to your monitoring stack
-or the hosted `/v1/runtime/beacon.ashx` intake for first triage, then validate
-any migrated anti-debug/self-defending switches manually. Use it after
-`--migrate-javascript-obfuscator` or `--migrate-js-confuser` to keep
-runtime-defense, source-map, and release-readiness assumptions visible in CI.
-The JSON and text output include a dated source snapshot of the public
-competitor pages reviewed for this migration framing, plus a reminder to
-re-check current vendor pages before publishing named competitive claims.
-The report also includes a source-free Competitor Gap Review Assistant for BYO
-AI or internal reviewers. It turns gap prioritization, partial-parity
-validation, triggered migration limitations, source-reading scan boundaries,
-vendor-claim freshness, and plan handoff into owner actions without sharing
-source code, protected output, API credentials, provider keys, customer data,
-or secrets.
-When source-map, identifier-cache, custom-dictionary, or runtime-defense
-limitations are present, the report also includes `reviewArtifacts`: source-free
-release-check, competitor-gap, all-up migration-review, source-map-evidence,
-and identifier-cache replacement review commands, a source-free runtime-defense
-review command, and a separate source-reading compatibility scan when
-runtime-defense switches need manual validation.
-Use `--migration-review` when a migrated config still carries any accepted
-competitor-only fields. The generated Markdown packet gives release owners one
-source-free checklist across source-map policy, identifier-cache replacement,
-runtime-defense behavior, CLI compatibility warnings, saved report/manifest
-readiness, follow-up commands, and protected-build smoke evidence without
-embedding source code, protected output, source-map contents, cache contents,
-dictionary values, prefixes, domains, URLs, dates, seed values, or reserved
-expressions. The packet includes a Migration Review Assistant for BYO AI or
-internal reviewers, turning manual review tracks, source-map policy,
-identifier-cache replacement, runtime-defense behavior, source-reading command
-boundaries, release metadata, and protected-build smoke into owner actions
-without sharing raw config files, API credentials, provider keys, customer data,
-or secrets.
-Use `--identifier-cache-review` when a migrated config still carries
-`identifierNamesCache`, `identifierNamesCachePath`, `identifiersDictionary`, or
-`identifiersPrefix`. The generated Markdown packet gives release owners a
-source-free checklist for replacing deterministic cache assumptions with
-reserved-name review, saved API report, release manifest, and protected-build
-smoke evidence without embedding cache contents, dictionary values, prefixes,
-reserved-name expressions, or source code. It includes an Identifier Cache
-Review Assistant for BYO AI or internal reviewers, turning deterministic cache
-assumptions, custom dictionary replacement, reserved-name coverage, release
-metadata, and protected-build smoke into owner actions without sharing raw
-config files, API credentials, provider keys, customer data, or secrets.
-Use `--runtime-defense-review` when a migrated config still carries anti-debug,
-self-defending, runtime lock, console, and countermeasure migration settings.
-The generated packet lists field names, configured evidence tracks, review
-decision, monitoring and smoke-test follow-ups, and safe-sharing boundaries
-without embedding domains, dates, redirect URLs, beacon URLs, countermeasure
-values, source code, or protected output. It includes a Runtime Defense Review
-Assistant for BYO AI or internal reviewers, turning runtime behavior scope,
-monitoring handoff, countermeasure policy, domain/date lock smoke,
-source-reading compatibility scan, release metadata, and protected-build smoke
-into owner actions without sharing raw config files, API credentials, provider
-keys, collector tokens, customer data, or secrets.
-
-Protect one file through a shell pipe:
-
-```bash
-type dist\app.js | npx jso-protector --stdin --stdout --file-name app.js > dist\app.protected.js
-```
 
 ## npm Scripts
 
@@ -1103,6 +756,610 @@ Or reference it from config:
 
 By default, the CLI ignores source maps, `node_modules`, and `*-obfuscated.js` files. When the output folder is nested under the input folder, reruns also skip that output folder so already protected files are not protected again. The CLI copies non-protected assets such as HTML, CSS, fonts, and images into the output folder. `assetExclude` keeps files such as source maps out of the protected release. Use `--no-copy-assets` or `"copyAssets": false` when another build step already handles assets.
 
+## Package Verification
+
+For ordinary development, run the deterministic verification chain with `npm run verify`. Before publishing or tagging an engine release, run the heavier release gate:
+
+```bash
+npm run verify:release
+```
+
+The release gate first runs every ordinary check, then regenerates protected output for the complete real-library corpus and compares the supported runtime samples against the freshly protected files. Do not run `verify:corpus-runtime` by itself as release evidence: it consumes the existing `tools/corpus-protect/.build/emitted` directory and therefore does not prove that the current engine produced those artifacts.
+
+To check only package installation behavior, run:
+
+```bash
+npm run verify:package
+```
+
+The verifier packs the package, installs the tarball into a fresh temporary project, checks root and subpath exports, checks shipped example syntax/config JSON, runs the CLI through the installed bin link, and verifies the direct single-file output default.
+
+## Security and Processing
+
+See `SECURITY.md` for the source-processing matrix, CI secret guidance, source-map policy, manifest metadata notes, and local-preflight guidance. Use `--release-check`, `--competitor-gap-report`, `--dry-run`, `--validate-config`, and `--doctor` when you need preflight checks before sending source code to the hosted API.
+
+## Live API Smoke Test
+
+After setting `JSO_API_KEY` and `JSO_API_PASSWORD`, run a tiny live API check from this package directory:
+
+```bash
+npm run smoke:api
+```
+
+The command protects the sample file in `dist/` and writes the result to `dist-protected/`. Use `npm run smoke` when you only want offline validation and a dry run.
+
+## Doctor
+
+Run `release-check` before a release job when you want one CI-friendly report that combines config validation, dry-run file planning, and doctor checks:
+
+```bash
+jso-protector --config jso.config.json --release-check
+jso-protector --config jso.config.json --release-check --json
+jso-protector --config jso.config.json --release-check --strict --json
+```
+
+Run `validate-config` first when you want a fast static check:
+
+```bash
+jso-protector --config jso.config.json --validate-config
+jso-protector --config jso.config.json --validate-config --json
+jso-protector --config jso.config.json --validate-config --strict --json
+```
+
+Run `doctor` before a release job to check config, credentials, paths, matched files, copied assets, output readiness, presets, and enabled options without sending source code to the API:
+
+```bash
+jso-protector --config jso.config.json --doctor
+jso-protector --config jso.config.json --doctor --json
+```
+
+`doctor` now includes a local compatibility scan summary. Run `jso-protector --config jso.config.json --compat-scan --json` when you need the detailed file-and-line findings before a release.
+
+When a config still carries competitor-only migration fields such as source-map flags, identifier cache paths, custom naming dictionaries, or JS-Confuser custom countermeasure notes, `validate-config`, `doctor`, and `release-check` emit grouped `limitations` entries in JSON output and `LIMITATION ...` lines in text output so CI can surface the remaining manual-review items explicitly.
+
+Run the standalone competitor gap report when you want a machine-readable parity summary for migrated configs:
+
+```bash
+jso-protector --config jso.config.json --competitor-gap-report --json
+```
+
+When a migrated config used deterministic identifier caches or custom
+identifier dictionaries, generate a reviewer packet for that specific gap:
+
+```bash
+jso-protector --config jso.config.json --identifier-cache-review \
+  --identifier-cache-review-output reports/identifier-cache-review.md
+```
+
+The packet is source-free. It lists the migration field names, counts,
+replacement evidence tracks, and review decision without embedding cache
+contents, dictionary values, prefixes, reserved-name expressions, or source
+code. The Identifier Cache Review Assistant gives BYO AI or internal reviewers
+owner-action prompts for deterministic cache assumptions, custom dictionary
+replacement, reserved-name coverage, release metadata, and protected-build
+smoke without exposing raw config files, API credentials, provider keys,
+customer data, or secrets.
+
+When a migrated config used anti-debug, self-defending, runtime lock, console,
+or countermeasure controls, generate the runtime-defense migration review:
+
+```bash
+jso-protector --config jso.config.json --runtime-defense-review \
+  --runtime-defense-review-output reports/runtime-defense-review.md
+```
+
+The packet is source-free. It turns anti-debug, self-defending, runtime lock,
+console, and countermeasure migration settings into a reviewer checklist with
+monitoring target, customer-owned forwarding, countermeasure policy,
+domain/date lock, release metadata, compatibility scan, and protected-build
+smoke-test tracks. It omits domains, dates, redirect URLs, beacon URLs,
+countermeasure values, source code, protected output, and compatibility-scan
+source snippets. The Runtime Defense Review Assistant gives BYO AI or internal
+reviewers owner-action prompts for runtime behavior scope, monitoring handoff,
+countermeasure policy, domain/date lock smoke, source-reading compatibility
+scan, release metadata, and protected-build smoke without exposing raw config
+files, API credentials, provider keys, collector tokens, customer data, or
+secrets.
+
+Add `--check-api` to `release-check` or `doctor` when CI should send a tiny live request to verify the endpoint and credentials:
+
+```bash
+jso-protector --config jso.config.json --release-check --check-api --json
+jso-protector --config jso.config.json --doctor --check-api --json
+```
+
+## Examples and CI Templates
+
+Copyable examples are included in `examples/`:
+
+- `examples/cli-basic`
+- `examples/node-api`
+- `examples/parcel`
+- `examples/bun`
+- `examples/browserify`
+- `examples/metro.config.js`
+- `examples/nextjs`
+- `examples/turbopack`
+- `examples/rspack`
+- `examples/esbuild`
+- `examples/vite`
+- `examples/rollup`
+- `examples/webpack`
+- `examples/webpack-loader`
+- `examples/gulp`
+- `examples/grunt`
+- `examples/react-native/metro.config.js`
+
+`examples/node-api/release-summary.js` is the most complete custom-script starting point: it validates config, prints a dry release plan, protects files, and reports written files, copied assets, and manifest output.
+
+CI templates are included in `ci/`:
+
+- `ci/github-actions.yml`
+- `ci/gitlab-ci.yml`
+- `ci/azure-pipelines.yml`
+
+The templates run `npm run verify:publish-metadata --if-present` so package projects can confirm the local-only metadata policy while application projects can ignore the optional script.
+
+## Migrating from javascript-obfuscator
+
+See `MIGRATION.md` when replacing the open-source `javascript-obfuscator` package or one of its bundler plugins with the hosted JavaScript Obfuscator API workflow. It covers command changes, concept mapping, direct Node API replacement, bundle-plugin replacement, and a migration checklist.
+
+For JS-Confuser projects, the same package now includes `--migrate-js-confuser`, `--list-js-confuser-migration-map`, `--explain-js-confuser-compat`, and `translateJsConfuserOptions(...)` so you can generate a starter `jso.config.json` and review the runtime-only gaps before switching release pipelines.
+
+## GitHub Actions
+
+Store `JSO_API_KEY` and `JSO_API_PASSWORD` as encrypted repository or organization secrets, then run release preflight and protection after your normal frontend build:
+
+```yaml
+name: protected-release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run verify:package --if-present
+      - run: npm run verify:publish-metadata --if-present
+      - name: Release preflight
+        run: npx jso-protector --config jso.config.json --release-check --json
+        env:
+          JSO_API_KEY: ${{ secrets.JSO_API_KEY }}
+          JSO_API_PASSWORD: ${{ secrets.JSO_API_PASSWORD }}
+      - name: Protect JavaScript
+        run: npx jso-protector --config jso.config.json --manifest dist-protected/jso-manifest.json
+        env:
+          JSO_API_KEY: ${{ secrets.JSO_API_KEY }}
+          JSO_API_PASSWORD: ${{ secrets.JSO_API_PASSWORD }}
+      - run: npm run smoke
+      - uses: actions/upload-artifact@v4
+        with:
+          name: protected-dist
+          path: |
+            dist-protected/
+            dist-protected/jso-manifest.json
+```
+
+## Working from a local checkout
+
+Published releases install from the registry with
+`npm install --save-dev jso-protector`. The paths below are for building the
+package from a checkout of this repository — internal testing, a release
+candidate, or an air-gapped install.
+
+Install the workspace copy directly:
+
+```bash
+npm install --save-dev ./packages/jso-protector
+```
+
+Or pin it from another app in the same workspace:
+
+```json
+{
+  "devDependencies": {
+    "jso-protector": "file:../packages/jso-protector"
+  }
+}
+```
+
+For internal sharing without going through the registry, build a tarball and
+install that artifact in the consuming project:
+
+```bash
+npm pack --json
+npm install --save-dev path/to/jso-protector-0.4.0.tgz
+```
+
+Keep those tarballs in internal storage or build artifacts. `prepublishOnly`
+runs the full verification chain before any real publish, so a release cannot
+go out on an unverified tree.
+
+## Release Checklist
+
+1. Build unprotected JavaScript into a temporary output folder.
+2. Run `jso-protector --release-check --json` to validate config, confirm the file list, and check paths, assets, output readiness, presets, and enabled options before source is sent.
+3. Protect into a separate output folder such as `dist-protected` and write `dist-protected/jso-manifest.json`.
+4. Run browser smoke tests against the protected output.
+5. Run `jso-protector --verify-manifest dist-protected/jso-manifest.json --audit-source-maps` before publishing or after unpacking release artifacts.
+6. Publish only the protected artifacts and release manifest.
+
+## Notes
+
+- The CLI sends file contents to the configured HTTP API endpoint.
+- The desktop app also sends selected JavaScript to the hosted service. Use local preflight only when policy forbids source transfer; current protection workflows do not meet that requirement.
+- The HTTP API is for paid accounts.
+- The CLI expects the API response shape used by `HttpApi.ashx`: `Type`, `Items`, `Message`, `FileName`, and optional error fields.
+
+## Payment and API Access
+
+This package is a client. It drives the hosted API by default, or the bundled `jso-local` protector with `--local`. Protection itself, billing and every plan limit live on the server, never in this package.
+
+A request with no credentials is served on the **free tier**: up to 20 files and 200 KB per request, rate limited per IP, no VM protection. Everything above that is a paid plan, enforced server-side.
+
+Payment and account enforcement stay on `javascriptobfuscator.com`:
+
+1. The user buys a plan or credits on the JavaScript Obfuscator website.
+2. The dashboard provides `JSO_API_KEY` and `JSO_API_PASSWORD`.
+3. By default the local npm CLI sends selected JavaScript to the configured HTTPS API endpoint.
+4. The hosted API validates the account, plan, limits, and credentials before returning protected code.
+
+With `--local` the source body stays on the build machine and step 3 does not
+happen, but entitlement is still enforced server-side: the run makes a
+source-free plan/option check before protecting. Either way, billing and plan
+limits live on the server, never in this package.
+
+Keep billing, entitlement checks, plan limits, and API secrets on the server side. The local npm package should only read credentials from environment variables or config and call the API.
+
+If the hosted API rejects a request, the CLI reports dashboard credential hints for authentication failures and account/plan/credit guidance for entitlement failures. API keys and passwords are redacted from error messages before they reach terminal logs.
+
+### Sign in once
+
+```bash
+npx javascriptobfuscator login
+```
+
+This opens the dashboard, takes the API Key and API Password (the password is
+not echoed), and stores them in `~/.jso-protector/credentials.json` for every
+project on the machine. `npx javascriptobfuscator logout` removes them.
+
+The store is written `0600`. That is real protection on POSIX; Windows does not
+honour the mode, so there the file is only as protected as your user profile
+directory - the same position as `~/.npmrc`.
+
+### Or set them per shell
+
+Stored credentials are read **last**, so an explicit flag, a project config, or
+these environment variables always win - a CI setup is unaffected by whatever a
+developer has logged in with locally.
+
+```bash
+set JSO_API_KEY=base64-api-key-from-dashboard
+set JSO_API_PASSWORD=base64-api-password-from-dashboard
+```
+
+For macOS/Linux shells:
+
+```bash
+export JSO_API_KEY=base64-api-key-from-dashboard
+export JSO_API_PASSWORD=base64-api-password-from-dashboard
+```
+
+Protect generated build output:
+
+```bash
+npx jso-protector --config jso.config.json
+```
+
+### Runtime recovery and enterprise governance foundations
+
+Browser-targeted API options now support bounded local recovery with
+`SelfDefending`, `SelfHealing`, and `SelfHealingMaxAttempts`. A successful
+repair emits a `self-healed-*` runtime event; when repair is unavailable or
+exhausted, `RuntimeDefenseAction` can use `throw`, `blank`, `redirect`,
+`reload`, `callback`, or `degrade`. Local recovery handles mutation after the
+wrapper starts and does not claim to repair a bundle modified before startup.
+
+Release automation can import `jso-protector/governance` for shared RBAC,
+scoped-token descriptors, SHA-256 hash-chained audit events, validated
+OIDC/SAML trust configuration, an organization directory, and a SCIM 2.0
+`/Users` service core with bearer authentication, filtering, role updates, and
+deactivation. Deployments still need to mount the service behind HTTPS and
+persist directory changes in their account store.
+
+`jso-protector/runtime/third-party-inventory` supports
+`enforcementMode: "block"` for synchronous origin and late-injection decisions
+on dynamically-created scripts. `jso-protector/runtime/managed-integrity` adds
+versioned monitor/block policies, inventory evaluation, deduplicated incidents,
+assignment/status transitions, and JSON export for hosted or on-prem operations.
+`jso-protector/runtime/data-exfiltration-guard` adds opt-in monitor/block controls
+for protected-field data sent through fetch, XHR, sendBeacon, WebSocket, or
+programmatic form submission. Allow approved destinations explicitly and begin
+in monitor mode. Evidence contains field names and counts, never captured values
+or request bodies; encoded/encrypted bodies and script attribution remain stated
+browser-runtime limitations.
+
+Compare a migrated config against common JavaScript obfuscator capabilities:
+
+```bash
+npx jso-protector --config jso.config.json --competitor-gap-report
+npx jso-protector --config jso.config.json --competitor-gap-report --json
+npx jso-protector --config jso.config.json --migration-review \
+  --migration-review-output reports/migration-review.md
+npx jso-protector --config jso.config.json --identifier-cache-review \
+  --identifier-cache-review-output reports/identifier-cache-review.md
+npx jso-protector --config jso.config.json --runtime-defense-review \
+  --runtime-defense-review-output reports/runtime-defense-review.md
+```
+
+The gap report groups parity into covered, partial, and gap areas across common
+competitor surfaces such as control-flow flattening, string hiding, domain/date
+locks, runtime monitoring, hosted dashboard intake, countermeasures, source
+maps, and release forensics. It names Obfuscator.io, javascript-obfuscator,
+JS-Confuser, Jscrambler, and JSDefender so migration reviews can separate exact
+matches from features that need manual validation. Runtime-defense parity is
+reported as partial: route `RuntimeDefenseBeaconUrl` to your monitoring stack
+or the hosted `/v1/runtime/beacon.ashx` intake for first triage, then validate
+any migrated anti-debug/self-defending switches manually. Use it after
+`--migrate-javascript-obfuscator` or `--migrate-js-confuser` to keep
+runtime-defense, source-map, and release-readiness assumptions visible in CI.
+The JSON and text output include a dated source snapshot of the public
+competitor pages reviewed for this migration framing, plus a reminder to
+re-check current vendor pages before publishing named competitive claims.
+The report also includes a source-free Competitor Gap Review Assistant for BYO
+AI or internal reviewers. It turns gap prioritization, partial-parity
+validation, triggered migration limitations, source-reading scan boundaries,
+vendor-claim freshness, and plan handoff into owner actions without sharing
+source code, protected output, API credentials, provider keys, customer data,
+or secrets.
+When source-map, identifier-cache, custom-dictionary, or runtime-defense
+limitations are present, the report also includes `reviewArtifacts`: source-free
+release-check, competitor-gap, all-up migration-review, source-map-evidence,
+and identifier-cache replacement review commands, a source-free runtime-defense
+review command, and a separate source-reading compatibility scan when
+runtime-defense switches need manual validation.
+Use `--migration-review` when a migrated config still carries any accepted
+competitor-only fields. The generated Markdown packet gives release owners one
+source-free checklist across source-map policy, identifier-cache replacement,
+runtime-defense behavior, CLI compatibility warnings, saved report/manifest
+readiness, follow-up commands, and protected-build smoke evidence without
+embedding source code, protected output, source-map contents, cache contents,
+dictionary values, prefixes, domains, URLs, dates, seed values, or reserved
+expressions. The packet includes a Migration Review Assistant for BYO AI or
+internal reviewers, turning manual review tracks, source-map policy,
+identifier-cache replacement, runtime-defense behavior, source-reading command
+boundaries, release metadata, and protected-build smoke into owner actions
+without sharing raw config files, API credentials, provider keys, customer data,
+or secrets.
+Use `--identifier-cache-review` when a migrated config still carries
+`identifierNamesCache`, `identifierNamesCachePath`, `identifiersDictionary`, or
+`identifiersPrefix`. The generated Markdown packet gives release owners a
+source-free checklist for replacing deterministic cache assumptions with
+reserved-name review, saved API report, release manifest, and protected-build
+smoke evidence without embedding cache contents, dictionary values, prefixes,
+reserved-name expressions, or source code. It includes an Identifier Cache
+Review Assistant for BYO AI or internal reviewers, turning deterministic cache
+assumptions, custom dictionary replacement, reserved-name coverage, release
+metadata, and protected-build smoke into owner actions without sharing raw
+config files, API credentials, provider keys, customer data, or secrets.
+Use `--runtime-defense-review` when a migrated config still carries anti-debug,
+self-defending, runtime lock, console, and countermeasure migration settings.
+The generated packet lists field names, configured evidence tracks, review
+decision, monitoring and smoke-test follow-ups, and safe-sharing boundaries
+without embedding domains, dates, redirect URLs, beacon URLs, countermeasure
+values, source code, or protected output. It includes a Runtime Defense Review
+Assistant for BYO AI or internal reviewers, turning runtime behavior scope,
+monitoring handoff, countermeasure policy, domain/date lock smoke,
+source-reading compatibility scan, release metadata, and protected-build smoke
+into owner actions without sharing raw config files, API credentials, provider
+keys, collector tokens, customer data, or secrets.
+
+Protect one file through a shell pipe:
+
+```bash
+type dist\app.js | npx jso-protector --stdin --stdout --file-name app.js > dist\app.protected.js
+```
+
+## Deployment Hygiene Evidence
+
+When `tools/Build-UpdatedArchives.ps1 -ReportPath _temp/archive-hygiene.json`
+creates an updated-files archive hygiene report, turn it into a source-free
+reviewer packet before sharing the zip:
+
+```bash
+npx jso-protector \
+  --deployment-hygiene-evidence _temp/archive-hygiene.json \
+  --deployment-hygiene-output reports/deployment-hygiene.md
+```
+
+The packet summarizes archive names, entry counts, byte sizes, missing required
+entries, blocked entries, blocked category booleans, the exclusion policy,
+operator checklist, rotation triggers, hygiene-report SHA-256, and a Deployment Hygiene Review Assistant for BYO AI or internal reviewers. It does not include
+`Web.config` contents, raw secrets, provider keys, webhook signing secrets,
+database strings, host-specific deployment transforms, customer data, or source
+code. It exits nonzero when the archive builder reported blocked deployment
+files or missing required entries, while still writing the failed packet for
+internal remediation.
+
+## Payment-page evidence reports
+
+For checkout, wallet, subscription, activation, and license pages, pair the
+signed release manifest with a payment-page script inventory and Dashboard
+Monitoring incident history. Export runtime incidents CSV or JSON from the
+dashboard, keep a CSV or JSON list of payment-page scripts with authorization
+and written justification, and attach a payment-page security-header snapshot
+when reviewers ask for CSP/header change evidence. Include these source-free
+attachments in the PCI DSS v4 report. Start from
+`examples/payment-page-script-inventory.json` and
+`examples/payment-page-security-headers.json` when you need the expected JSON
+field names, or generate a review starter from a saved
+`third-party-inventory` runtime snapshot:
+
+```bash
+npx jso-protector \
+  --script-inventory-from-snapshot reports/runtime-inventory.json \
+  --script-inventory-output reports/payment-script-inventory.json
+```
+
+If your checkout evidence starts as a browser or synthetic-monitor HAR export,
+convert the document and iframe responses into the same source-free
+security-header snapshot. The converter keeps CSP, HSTS, frame/referrer policy,
+reporting endpoint, and related security headers, drops raw cookies and other
+non-security headers, and stores a SHA-256 over each canonical selected-header
+snapshot. Keep the last approved snapshot in your evidence repository and pass
+it as `--payment-page-headers-baseline` when you want the new HAR export to
+mark each checkout page or frame as `match`, `mismatch`, or `missing` for
+security-header change review. The generated snapshot also includes a
+source-free security-header Review Assistant Packet for BYO AI or internal
+reviewers. It focuses the review on baseline drift, CSP/reporting, HSTS, and
+frame-policy owner actions while reminding teams not to include
+raw response headers, cookies, source code, payment data, customer data, provider keys, or
+secrets.
+
+```bash
+npx jso-protector \
+  --payment-page-headers-from-har reports/checkout.har \
+  --payment-page-headers-baseline reports/payment-page-headers.baseline.json \
+  --payment-page-headers-output reports/payment-page-headers.json \
+  --payment-page-url-pattern "checkout|payment|wallet"
+```
+
+Review the generated script inventory file before audit use. Set `authorized`, add written
+`justification`, assign `owner`, and fill `lastReviewedUtc` for every approved
+payment-page script. Add `risk`, `dataAccess`, and `approvalTicket` when your
+checkout review process tracks risk-based decisions or change approvals. Add
+`checkoutSurface`, `frameContext`, `frameOwner`, `parentPageHref`, `frameHref`,
+and `frameOrigin` when your payment flow has a parent page, hosted checkout
+page, PSP iframe, or embedded payment frame that reviewers need to distinguish.
+The
+audit packet fails only on blocking script drift or required metadata gaps; it
+also calls out missing optional review context so checkout owners can improve
+QSA handoff quality without breaking an otherwise clean release. Before handing
+the packet to reviewers, reconcile the approved inventory against a fresh
+runtime snapshot:
+
+```bash
+npx jso-protector \
+  --script-inventory-audit reports/payment-script-inventory.json \
+  --runtime-inventory-snapshot reports/runtime-inventory.json \
+  --script-inventory-audit-output reports/payment-script-inventory-audit.json \
+  --json
+```
+
+The audit is local and source-free. It reports unknown observed scripts,
+scripts observed while marked unauthorized, approved scripts missing from the
+page, hash mismatches, scripts injected after page load, runtime violation
+reasons, and missing inventory metadata. Omit `--json` or use a `.md` output
+path when a standalone human-readable packet is preferred.
+
+In GitHub Actions, the bundled JSO action exposes the same audit,
+security-header snapshot, and PCI DSS v4 reviewer packet as opt-in workflow
+steps: set
+`payment-script-inventory`, `runtime-inventory-snapshot`, and optionally
+`script-inventory-audit-report` to fail the release job on payment-page script
+drift; set `payment-page-har`, optionally `payment-page-url-pattern`, and
+optionally `payment-page-headers-baseline` and `payment-page-headers-report` to
+convert a checkout HAR into the same source-free header evidence artifact and
+mark baseline matches, mismatches, or missing pages; set `pci-dss-v4-evidence` with
+`pci-dss-v4-report` and `pci-dss-v4-json-report` to assemble the Markdown and
+JSON PCI evidence report from the protected manifest plus those attachments.
+Use `manifest`, `sign-release-key`, `watermark`, and `watermark-key` when this
+report needs to pass rather than document incomplete evidence. The action adds
+a step summary and workflow annotations for the first audit, header, or PCI
+findings so reviewers can see drift directly in the CI run.
+
+```bash
+npx jso-protector compliance pci-dss-v4 \
+  --manifest dist-protected/jso-manifest.json.sig \
+  --root dist-protected \
+  --watermark-key "$JSO_WATERMARK_KEY" \
+  --beacon-url "https://javascriptobfuscator.com/v1/runtime/beacon.ashx" \
+  --siem splunk-hec \
+  --script-inventory reports/payment-script-inventory.json \
+  --script-inventory-audit reports/payment-script-inventory-audit.json \
+  --payment-page-headers reports/payment-page-headers.json \
+  --runtime-incidents reports/runtime-incidents.json \
+  --organization "Example Corp" \
+  --output reports/pci-dss-v4.md
+```
+
+The report hashes and summarizes these attachments, then adds a source-free PCI
+DSS Review Assistant for BYO AI or internal reviewers. The assistant turns
+evidence gaps, signed-release proof, script authorization, observed script
+drift, header change evidence, runtime incident routing, and QSA handoff
+boundaries into checkout-owner actions without sharing source code, protected
+output, raw script rows, raw response headers, raw incident payloads,
+payment-card data, provider keys, customer data, or secrets. Script inventory evidence is
+summarized by authorization, justification, owner, domain, review range, and
+integrity-reference coverage. When the inventory includes `risk`, `dataAccess`,
+`approvalTicket`, `checkoutSurface`, `frameContext`, and `frameOwner`, the
+report summarizes those fields, including iframe-scoped script counts, without
+embedding every script row. Security-header evidence is summarized by CSP,
+`script-src`, `frame-src`, reporting endpoint, HSTS, referrer-policy,
+baseline-hash match/mismatch/missing state, checkout surface, frame context, monitor, alert
+route, domain, observed range, and SHA-256 without embedding every raw page
+row. Runtime incident evidence is summarized by status, severity,
+open/reviewing count, per-incident next owner and due state, repeated-signal correlation, date range, Build IDs, and SHA-256. The Markdown does not
+embed every incident URL, user agent, script row, or raw header snapshot, so it
+can be handed to reviewers while the CSV or JSON exports remain the source-free
+attachments. The report supports QSA-led assessment; it is not itself a Report
+on Compliance.
+When a Dashboard Monitoring JSON export includes filters such as
+`runtime_status=active`, `runtime_severity=high-critical`, or
+`runtime_build=checkout-2026-06-07`, the report keeps that filter context in
+the runtime incident evidence table. The Dashboard JSON export also carries a
+source-free summary block with status/severity counts, active high-risk count,
+payload-hash coverage, BuildIDs, event/received date ranges, per-incident action-plan owner/due/status metadata, repeated fingerprint/reason groups, a routing
+recommendation, an alert routing playbook, and a response checklist before the incident rows. Dashboard
+Monitoring shows the same routing recommendation on the current filtered view
+before export, including response target, next status action, and playbook
+lanes for security response, customer-owned alerting, support handoff, and
+reviewer packets. The JSON export also includes source-free dashboard action
+metadata, such as the filtered "Move open in view to Reviewing" status action,
+plus per-row action plans that name the next owner, evidence packet, response due state, and status move, so support automation can tell account owners what to do next without scraping
+dashboard HTML. The PCI
+evidence report preserves those Dashboard JSON fields so support and reviewers
+can see whether the packet belongs in runtime triage, security response, or
+archive evidence. The response checklist and alert routing playbook carry
+owners, response targets, scope confirmation, downstream routing, and
+safe-sharing boundaries for reviewer
+or on-call handoff. A single-row Dashboard Monitoring Evidence JSON packet can also be passed to
+`--runtime-incidents` when the review is about one specific event.
+
+For non-PCI runtime reviews, generate a standalone source-free handoff packet
+directly from the Dashboard Monitoring export:
+
+```bash
+npx jso-protector \
+  --runtime-incident-evidence reports/runtime-incidents.json \
+  --runtime-incident-evidence-output reports/runtime-incident-evidence.md
+```
+
+The packet summarizes status and severity counts, active high/critical count,
+BuildIDs, per-incident action plans, repeated-signal correlation, routing recommendation, dashboard actions,
+response window, response checklist, alert routing playbook, export SHA-256, and safe-sharing boundaries.
+It also includes a source-free Runtime Incident Review Assistant for BYO AI or
+internal reviewers, with prompts for urgent response, repeated-signal
+correlation, overdue incident owners, dashboard status actions, response-window decisions, and
+alert-routing handoff without sharing source code, raw incident payloads,
+collector tokens, customer data, or secrets.
+It exits nonzero when active high/critical incidents are present so CI can
+block reviewer handoff until the incident is acknowledged and routed.
+
+In GitHub Actions, the bundled JSO action exposes the same gate as
+`runtime-incident-export` plus `runtime-incident-evidence-report`. The action
+writes a source-free JSON artifact, adds a step summary and annotations, and
+fails the job when the exported packet contains active high/critical runtime
+incidents that have not started response.
+
 ## Commands
 
 ```bash
@@ -1393,246 +1650,3 @@ Use `--payment-page-headers-from-har checkout.har --payment-page-headers-output 
 Use `jso-protector compliance pci-dss-v4 --script-inventory-audit audit.json` to include the JSON audit summary in the PCI evidence report alongside `--script-inventory` and `--runtime-incidents`. The generated Markdown and JSON also include a source-free PCI DSS Review Assistant for BYO AI or internal reviewers, with prompts for evidence gaps, signed-release proof, script authorization, observed script drift, header change evidence, runtime incident routing, and QSA handoff boundaries. Do not paste source code, protected output, raw script rows, raw response headers, raw incident payloads, payment-card data, provider keys, customer data, or secrets into that review.
 
 Use `--max-output-bytes` / `"maxOutputBytes"` and `--max-growth-ratio` / `"maxGrowthRatio"` to fail CI when protected output exceeds your release size budget. The same budget fields work in bundle plugins.
-
-## Package Verification
-
-For ordinary development, run the deterministic verification chain with `npm run verify`. Before publishing or tagging an engine release, run the heavier release gate:
-
-```bash
-npm run verify:release
-```
-
-The release gate first runs every ordinary check, then regenerates protected output for the complete real-library corpus and compares the supported runtime samples against the freshly protected files. Do not run `verify:corpus-runtime` by itself as release evidence: it consumes the existing `tools/corpus-protect/.build/emitted` directory and therefore does not prove that the current engine produced those artifacts.
-
-To check only package installation behavior, run:
-
-```bash
-npm run verify:package
-```
-
-The verifier packs the package, installs the tarball into a fresh temporary project, checks root and subpath exports, checks shipped example syntax/config JSON, runs the CLI through the installed bin link, and verifies the direct single-file output default.
-
-## Security and Processing
-
-See `SECURITY.md` for the source-processing matrix, CI secret guidance, source-map policy, manifest metadata notes, and local-preflight guidance. Use `--release-check`, `--competitor-gap-report`, `--dry-run`, `--validate-config`, and `--doctor` when you need preflight checks before sending source code to the hosted API.
-
-## Live API Smoke Test
-
-After setting `JSO_API_KEY` and `JSO_API_PASSWORD`, run a tiny live API check from this package directory:
-
-```bash
-npm run smoke:api
-```
-
-The command protects the sample file in `dist/` and writes the result to `dist-protected/`. Use `npm run smoke` when you only want offline validation and a dry run.
-
-## Doctor
-
-Run `release-check` before a release job when you want one CI-friendly report that combines config validation, dry-run file planning, and doctor checks:
-
-```bash
-jso-protector --config jso.config.json --release-check
-jso-protector --config jso.config.json --release-check --json
-jso-protector --config jso.config.json --release-check --strict --json
-```
-
-Run `validate-config` first when you want a fast static check:
-
-```bash
-jso-protector --config jso.config.json --validate-config
-jso-protector --config jso.config.json --validate-config --json
-jso-protector --config jso.config.json --validate-config --strict --json
-```
-
-Run `doctor` before a release job to check config, credentials, paths, matched files, copied assets, output readiness, presets, and enabled options without sending source code to the API:
-
-```bash
-jso-protector --config jso.config.json --doctor
-jso-protector --config jso.config.json --doctor --json
-```
-
-`doctor` now includes a local compatibility scan summary. Run `jso-protector --config jso.config.json --compat-scan --json` when you need the detailed file-and-line findings before a release.
-
-When a config still carries competitor-only migration fields such as source-map flags, identifier cache paths, custom naming dictionaries, or JS-Confuser custom countermeasure notes, `validate-config`, `doctor`, and `release-check` emit grouped `limitations` entries in JSON output and `LIMITATION ...` lines in text output so CI can surface the remaining manual-review items explicitly.
-
-Run the standalone competitor gap report when you want a machine-readable parity summary for migrated configs:
-
-```bash
-jso-protector --config jso.config.json --competitor-gap-report --json
-```
-
-When a migrated config used deterministic identifier caches or custom
-identifier dictionaries, generate a reviewer packet for that specific gap:
-
-```bash
-jso-protector --config jso.config.json --identifier-cache-review \
-  --identifier-cache-review-output reports/identifier-cache-review.md
-```
-
-The packet is source-free. It lists the migration field names, counts,
-replacement evidence tracks, and review decision without embedding cache
-contents, dictionary values, prefixes, reserved-name expressions, or source
-code. The Identifier Cache Review Assistant gives BYO AI or internal reviewers
-owner-action prompts for deterministic cache assumptions, custom dictionary
-replacement, reserved-name coverage, release metadata, and protected-build
-smoke without exposing raw config files, API credentials, provider keys,
-customer data, or secrets.
-
-When a migrated config used anti-debug, self-defending, runtime lock, console,
-or countermeasure controls, generate the runtime-defense migration review:
-
-```bash
-jso-protector --config jso.config.json --runtime-defense-review \
-  --runtime-defense-review-output reports/runtime-defense-review.md
-```
-
-The packet is source-free. It turns anti-debug, self-defending, runtime lock,
-console, and countermeasure migration settings into a reviewer checklist with
-monitoring target, customer-owned forwarding, countermeasure policy,
-domain/date lock, release metadata, compatibility scan, and protected-build
-smoke-test tracks. It omits domains, dates, redirect URLs, beacon URLs,
-countermeasure values, source code, protected output, and compatibility-scan
-source snippets. The Runtime Defense Review Assistant gives BYO AI or internal
-reviewers owner-action prompts for runtime behavior scope, monitoring handoff,
-countermeasure policy, domain/date lock smoke, source-reading compatibility
-scan, release metadata, and protected-build smoke without exposing raw config
-files, API credentials, provider keys, collector tokens, customer data, or
-secrets.
-
-Add `--check-api` to `release-check` or `doctor` when CI should send a tiny live request to verify the endpoint and credentials:
-
-```bash
-jso-protector --config jso.config.json --release-check --check-api --json
-jso-protector --config jso.config.json --doctor --check-api --json
-```
-
-## Examples and CI Templates
-
-Copyable examples are included in `examples/`:
-
-- `examples/cli-basic`
-- `examples/node-api`
-- `examples/parcel`
-- `examples/bun`
-- `examples/browserify`
-- `examples/metro.config.js`
-- `examples/nextjs`
-- `examples/turbopack`
-- `examples/rspack`
-- `examples/esbuild`
-- `examples/vite`
-- `examples/rollup`
-- `examples/webpack`
-- `examples/webpack-loader`
-- `examples/gulp`
-- `examples/grunt`
-- `examples/react-native/metro.config.js`
-
-`examples/node-api/release-summary.js` is the most complete custom-script starting point: it validates config, prints a dry release plan, protects files, and reports written files, copied assets, and manifest output.
-
-CI templates are included in `ci/`:
-
-- `ci/github-actions.yml`
-- `ci/gitlab-ci.yml`
-- `ci/azure-pipelines.yml`
-
-The templates run `npm run verify:publish-metadata --if-present` so package projects can confirm the local-only metadata policy while application projects can ignore the optional script.
-
-## Migrating from javascript-obfuscator
-
-See `MIGRATION.md` when replacing the open-source `javascript-obfuscator` package or one of its bundler plugins with the hosted JavaScript Obfuscator API workflow. It covers command changes, concept mapping, direct Node API replacement, bundle-plugin replacement, and a migration checklist.
-
-For JS-Confuser projects, the same package now includes `--migrate-js-confuser`, `--list-js-confuser-migration-map`, `--explain-js-confuser-compat`, and `translateJsConfuserOptions(...)` so you can generate a starter `jso.config.json` and review the runtime-only gaps before switching release pipelines.
-
-## GitHub Actions
-
-Store `JSO_API_KEY` and `JSO_API_PASSWORD` as encrypted repository or organization secrets, then run release preflight and protection after your normal frontend build:
-
-```yaml
-name: protected-release
-
-on:
-  workflow_dispatch:
-
-jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      - run: npm run verify:package --if-present
-      - run: npm run verify:publish-metadata --if-present
-      - name: Release preflight
-        run: npx jso-protector --config jso.config.json --release-check --json
-        env:
-          JSO_API_KEY: ${{ secrets.JSO_API_KEY }}
-          JSO_API_PASSWORD: ${{ secrets.JSO_API_PASSWORD }}
-      - name: Protect JavaScript
-        run: npx jso-protector --config jso.config.json --manifest dist-protected/jso-manifest.json
-        env:
-          JSO_API_KEY: ${{ secrets.JSO_API_KEY }}
-          JSO_API_PASSWORD: ${{ secrets.JSO_API_PASSWORD }}
-      - run: npm run smoke
-      - uses: actions/upload-artifact@v4
-        with:
-          name: protected-dist
-          path: |
-            dist-protected/
-            dist-protected/jso-manifest.json
-```
-
-## Working from a local checkout
-
-Published releases install from the registry with
-`npm install --save-dev jso-protector`. The paths below are for building the
-package from a checkout of this repository — internal testing, a release
-candidate, or an air-gapped install.
-
-Install the workspace copy directly:
-
-```bash
-npm install --save-dev ./packages/jso-protector
-```
-
-Or pin it from another app in the same workspace:
-
-```json
-{
-  "devDependencies": {
-    "jso-protector": "file:../packages/jso-protector"
-  }
-}
-```
-
-For internal sharing without going through the registry, build a tarball and
-install that artifact in the consuming project:
-
-```bash
-npm pack --json
-npm install --save-dev path/to/jso-protector-0.4.0.tgz
-```
-
-Keep those tarballs in internal storage or build artifacts. `prepublishOnly`
-runs the full verification chain before any real publish, so a release cannot
-go out on an unverified tree.
-
-## Release Checklist
-
-1. Build unprotected JavaScript into a temporary output folder.
-2. Run `jso-protector --release-check --json` to validate config, confirm the file list, and check paths, assets, output readiness, presets, and enabled options before source is sent.
-3. Protect into a separate output folder such as `dist-protected` and write `dist-protected/jso-manifest.json`.
-4. Run browser smoke tests against the protected output.
-5. Run `jso-protector --verify-manifest dist-protected/jso-manifest.json --audit-source-maps` before publishing or after unpacking release artifacts.
-6. Publish only the protected artifacts and release manifest.
-
-## Notes
-
-- The CLI sends file contents to the configured HTTP API endpoint.
-- The desktop app also sends selected JavaScript to the hosted service. Use local preflight only when policy forbids source transfer; current protection workflows do not meet that requirement.
-- The HTTP API is for paid accounts.
-- The CLI expects the API response shape used by `HttpApi.ashx`: `Type`, `Items`, `Message`, `FileName`, and optional error fields.

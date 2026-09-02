@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.9 - 2026-09-01
+
+README only. No behaviour changes.
+
+- The npm registry truncates a README at 65,536 characters and ours is 100,725,
+  so a third of it never rendered on the package page - including `--local`
+  (protect without sending source), watermarking, signed release attestations,
+  the migration guide and the security section. The 30 KB command reference and
+  the PCI evidence walkthrough now sit at the end and take the truncation
+  instead; everything that explains what the tool is fits above the cut. Nothing
+  was deleted, and the full reference is on the docs site.
+- Adds the measured dependency comparison against `javascript-obfuscator` 5.6.0:
+  0 dependencies against 23, 3 installed directories against 120, 1s against 9s,
+  2 MB against 56 MB. That was already true and stated once as an adjective; a
+  build tool sold on reducing risk should show the number.
+
 ## 0.4.8 - 2026-09-01
 
 The rate-limit message a first run actually sees.

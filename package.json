@@ -1,6 +1,6 @@
 {
   "name": "jso-protector",
-  "version": "0.4.8",
+  "version": "0.4.9",
   "description": "Obfuscate and protect JavaScript in your build or CI: dependency-free CLI, Node API, and webpack/Vite/Rollup/esbuild/Next.js/Metro plugins, with one-command migration from javascript-obfuscator and JS-Confuser configs.",
   "license": "SEE LICENSE IN LICENSE",
   "author": "JavaScript Obfuscator",
