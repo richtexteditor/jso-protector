@@ -297,7 +297,7 @@
     "verify:polyglot": "node ../polyglot-smoke/smoke.js",
     "verify:ai": "node ../polyglot-smoke/ai-smoke.js",
     "verify:ai-live": "node ../polyglot-smoke/ai-smoke-live.js",
-    "prepublishOnly": "node ./ci/verify-publish-metadata.js && npm run verify:package && npm run verify:ci && npm run verify:polyglot && npm run verify:ai"
+    "prepublishOnly": "node ./ci/verify-publish-metadata.js && npm run verify:package && npm run verify:examples && npm run verify:ci && npm run verify:polyglot && npm run verify:ai"
   },
   "engines": {
     "node": ">=18"
